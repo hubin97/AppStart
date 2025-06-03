@@ -1,0 +1,269 @@
+//
+//  LoggerManager.swift
+//  HBSwiftKit_Example
+//
+//  Created by Hubin_Huang on 2021/9/30.
+//  Copyright © 2020 Wingto. All rights reserved.
+
+import Foundation
+import CocoaLumberjack
+
+// MARK: - global var and methods
+//private let KdateFormatString = "yyyy/MM/dd HH:mm:ss"
+
+public typealias LogM = LoggerManager
+// MARK: - main class
+open class LoggerManager {
+
+    public static let shared = LoggerManager()
+    
+    // 定义Log等级 *  Error, warning, info, debug and verbose logs
+    public var logLevel: DDLogLevel = .all
+    
+    // 指定日志存放路径
+    public let path = (QuickPaths.documentPath ?? "") + "/Logs"
+
+    /// 存7天
+    open lazy var fileLogger: DDFileLogger = {
+        // 初始化 日志文件夹的路径
+        let _fileLogger = DDFileLogger(logFileManager: DDLogFileManagerDefault(logsDirectory: path))
+        // 重用log文件，不要每次启动都创建新的log文件(默认值是false)
+        _fileLogger.doNotReuseLogFiles = false
+        // 禁用文件大小滚动
+        _fileLogger.maximumFileSize = 0
+        // log文件在24小时内有效，超过时间创建新log文件(默认值是24小时)
+        _fileLogger.rollingFrequency = 60 * 60 * 24
+        // 最多保存7个log文件
+        _fileLogger.logFileManager.maximumNumberOfLogFiles = 7
+        // log文件夹最多保存20M
+        _fileLogger.logFileManager.logFilesDiskQuota = 1024 * 1024 * 20
+        _fileLogger.logFormatter = LoggerFormatter(mode: .detail)
+        return _fileLogger
+    }()
+    
+    /// 开启日志记录
+    /// - Parameters:
+    ///   - logLevel: 日志级别
+    ///   - logMode: 日志模式, 默认简易模式
+    /// - Returns:
+    @discardableResult
+    public func launch(_ logLevel: DDLogLevel = .all, logMode: LoggerFormatter.LogMode = .easy) -> Self {
+        self.logLevel = logLevel
+        let ddosLogger = DDOSLogger.sharedInstance
+        ddosLogger.logFormatter = LoggerFormatter(mode: logMode) // 应用自定义的日志格式器
+        DDLog.add(ddosLogger) // 添加一个控制台输出的日志记录器
+        DDLog.add(fileLogger)
+        return self
+    }
+    
+    /// 缓存设置图标
+    private var cacheIcon: UIImage?
+    /// 初始化日志入口
+    public func entrance(_ icon: UIImage? = nil) {
+        let aIcon = cacheIcon ?? icon ?? UIImage.bundleImage(named: "logger")
+        self.cacheIcon = aIcon
+
+        LoggerAssistant(icon: aIcon) {
+            stackTopViewController()?.navigationController?.pushViewController(LoggerListController(), animated: true)
+        }.show()
+    }
+    
+    /// 移除日志入口
+    public func removeEntrance() {
+        kAppKeyWindow?.subviews.first(where: { $0.isKind(of: LoggerAssistant.classForCoder()) })?.removeFromSuperview()
+    }
+
+    /// 是否已展示入口
+    public func hasEntrance() -> Bool {
+        if let isOn = UserDefaults.standard.object(forKey: "LoggerAssistant") as? Bool {
+            return isOn
+        }
+        return false
+    }
+
+    /// 更新入口状态
+    /// - Parameter state: 开启/关闭
+    public func updateEntrance(_ state: Bool) {
+        UserDefaults.standard.set(state, forKey: "LoggerAssistant")
+        UserDefaults.standard.synchronize()
+    }
+}
+
+extension LoggerManager {
+    
+//    public static func error(_ message: String,
+//                             file: StaticString = #file,
+//                             function: StaticString = #function,
+//                             line: UInt = #line) {
+//        DDLogError("\(message)", file: file, function: function, line: line)
+//    }
+//    
+//    public static func warn(_ message: String,
+//                            file: StaticString = #file,
+//                            function: StaticString = #function,
+//                            line: UInt = #line) {
+//        DDLogWarn("\(message)", file: file, function: function, line: line)
+//    }
+//    
+//    public static func info(_ message: String,
+//                            file: StaticString = #file,
+//                            function: StaticString = #function,
+//                            line: UInt = #line) {
+//        DDLogInfo("\(message)", file: file, function: function, line: line)
+//    }
+//    
+//    public static func debug(_ message: String,
+//                             file: StaticString = #file,
+//                             function: StaticString = #function,
+//                             line: UInt = #line) {
+//        DDLogDebug("\(message)", file: file, function: function, line: line)
+//    }
+//    
+//    public static func verbose(_ message: String,
+//                               file: StaticString = #file,
+//                               function: StaticString = #function,
+//                               line: UInt = #line) {
+//        DDLogVerbose("\(message)", file: file, function: function, line: line)
+//    }
+    
+    // MARK: - 修复宏定义不支持问题
+//    CocoaLumberjack/Sources/CocoaLumberjack/include/CocoaLumberjack/DDLogMacros.h:91:9: note: macro 'DDLogError' unavailable: function like macros not supported
+//    CocoaLumberjack/Sources/CocoaLumberjack/include/CocoaLumberjack/DDLogMacros.h:92:9: note: macro 'DDLogWarn' unavailable: function like macros not supported
+//    CocoaLumberjack/Sources/CocoaLumberjack/include/CocoaLumberjack/DDLogMacros.h:93:9: note: macro 'DDLogInfo' unavailable: function like macros not supported
+//    CocoaLumberjack/Sources/CocoaLumberjack/include/CocoaLumberjack/DDLogMacros.h:94:9: note: macro 'DDLogDebug' unavailable: function like macros not supported
+
+    // 通用log方法
+    private static func log(_ message: String, level: DDLogLevel, flag: DDLogFlag) {
+        // 如果日志级别为 off，则不记录日志
+        guard level != .off else { return }
+        DDLog.log(asynchronous: true, level: level, flag: flag, context: 0, file: #file, function: #function, line: #line, tag: nil, format: message, arguments: getVaList([]))
+    }
+        
+    /// 通用log方法
+    /// - Parameters:
+    ///   - level: 级别
+    ///   - message: 内容
+    public static func log(level: DDLogLevel, message: String) {
+        switch level {
+        case .off:
+            off()
+        case .error:
+            error(message)
+        case .warning:
+            warn(message)
+        case .info:
+            info(message)
+        case .debug:
+            debug(message)
+        case .verbose:
+            verbose(message)
+        case .all:
+            all(message)
+        }
+    }
+    
+    /// 当 DDLogLevel 为 .off; 这意味着所有日志都被禁用。在这种情况下，设置什么样的 DDLogFlag，日志都不会被记录
+    public static func off() {
+        log("", level: .off, flag: .info)
+    }
+    
+    public static func error(_ message: String) {
+        log(message, level: .error, flag: .error)
+    }
+    
+    public static func warn(_ message: String) {
+        log(message, level: .warning, flag: .warning)
+    }
+    
+    public static func info(_ message: String) {
+        log(message, level: .info, flag: .info)
+    }
+    
+    public static func debug(_ message: String) {
+        log(message, level: .debug, flag: .debug)
+    }
+    
+    public static func verbose(_ message: String) {
+        log(message, level: .verbose, flag: .verbose)
+    }
+    
+    /// 当 DDLogLevel 为 .all; 这意味着所有级别的日志都将被记录。在这种情况下，可以根据需要设置 DDLogFlag。
+    /// 例如，如果你想记录所有类型的日志，可以使用 .verbose 标志。
+    public static func all(_ message: String) {
+        log(message, level: .all, flag: .verbose)
+    }
+}
+
+///注意: 使用logResourcesCount的`RxSwift.Resources.total` 需要在Podfile中启用资源跟踪 (主工程配置)
+/**
+ # Enable tracing resources
+ installer.pods_project.targets.each do |target|
+   if target.name == 'RxSwift'
+     target.build_configurations.each do |config|
+       if config.name == 'Debug'
+         config.build_settings['OTHER_SWIFT_FLAGS'] ||= ['-D', 'TRACE_RESOURCES']
+       end
+     end
+   end
+ end
+ */
+import RxSwift
+public func logResourcesCount(enable: Bool = false) {
+    #if DEBUG
+    if enable {
+        LogM.debug("RxSwift resources count: \(RxSwift.Resources.total)")
+        
+    }
+    #endif
+}
+
+// MARK: - other classes
+
+open class LoggerFormatter: NSObject, DDLogFormatter {
+
+    /// 日志模式
+    public enum LogMode {
+        /// 简易日志
+        case easy
+        /// 日志详情
+        case detail
+    }
+    
+    private(set) var logMode: LogMode = .detail
+    convenience init(mode: LogMode) {
+        self.init()
+        self.logMode = mode
+    }
+    
+    open func format(message logMessage: DDLogMessage) -> String? {
+        guard logMessage.flag.rawValue <= LoggerManager.shared.logLevel.rawValue else { return nil }
+
+        var flag = ""
+        switch logMessage.flag {
+        case .error:
+            flag = "E❌"
+            break
+        case .warning:
+            flag = "W⚠️"
+            break
+        case .info:
+            flag = "I📝"
+            break
+        case .debug:
+            flag = "D🛠"
+            break
+        default:
+            flag = "🧩"
+            break
+        }
+        let time = logMessage.timestamp.format(with: "yyyy-MM-dd HH:mm:ss.SSS")
+        let message = logMessage.message
+        
+        switch logMode {
+        case .easy:
+            return "[\(time)] [\(flag)]" + " " + message
+        case .detail:
+            return "[\(time)] [\(flag)]" + " " +  "[\(logMessage.threadID)][\(logMessage.fileName):\(logMessage.line) \(logMessage.function ?? "")]" + " " + message
+        }
+    }
+}

@@ -1,0 +1,180 @@
+PODS:
+  - Alamofire (5.10.2)
+  - AppStart (0.1.0):
+    - AppStart/Base (= 0.1.0)
+    - AppStart/BLE (= 0.1.0)
+    - AppStart/Network (= 0.1.0)
+    - AppStart/Utils (= 0.1.0)
+  - AppStart/Base (0.1.0):
+    - AppStart/Base/Core (= 0.1.0)
+    - AppStart/Base/UI (= 0.1.0)
+    - Kingfisher
+    - ProgressHUD
+    - SnapKit
+    - Toast-Swift
+  - AppStart/Base/Core (0.1.0):
+    - Kingfisher
+    - ProgressHUD
+    - SnapKit
+    - Toast-Swift
+  - AppStart/Base/UI (0.1.0):
+    - AppStart/Base/Core
+    - Kingfisher
+    - ProgressHUD
+    - SnapKit
+    - Toast-Swift
+  - AppStart/BLE (0.1.0):
+    - "NSObject+Rx"
+    - RxCocoa
+    - RxSwift
+  - AppStart/Network (0.1.0):
+    - AppStart/Network/Core (= 0.1.0)
+    - AppStart/Network/Utils (= 0.1.0)
+    - Moya
+    - ObjectMapper
+    - ProgressHUD
+    - PromiseKit
+    - RxRelay
+    - RxSwift
+  - AppStart/Network/Core (0.1.0):
+    - AppStart/Utils
+    - Moya
+    - ObjectMapper
+    - ProgressHUD
+    - PromiseKit
+    - RxRelay
+    - RxSwift
+  - AppStart/Network/Utils (0.1.0):
+    - Moya
+    - ObjectMapper
+    - ProgressHUD
+    - PromiseKit
+    - RxRelay
+    - RxSwift
+  - AppStart/Utils (0.1.0):
+    - AppStart/Utils/AuthStatus (= 0.1.0)
+    - AppStart/Utils/Helpers (= 0.1.0)
+    - AppStart/Utils/LoggerManager (= 0.1.0)
+    - CocoaLumberjack
+    - Kingfisher
+    - Toast-Swift
+  - AppStart/Utils/AuthStatus (0.1.0):
+    - AppStart/Base/Core
+    - CocoaLumberjack
+    - Kingfisher
+    - Toast-Swift
+  - AppStart/Utils/Helpers (0.1.0):
+    - AppStart/Base/Core
+    - CocoaLumberjack
+    - Kingfisher
+    - Toast-Swift
+  - AppStart/Utils/LoggerManager (0.1.0):
+    - AppStart/Base
+    - AppStart/Utils/Helpers
+    - CocoaLumberjack
+    - Kingfisher
+    - RxSwift
+    - Toast-Swift
+  - CocoaLumberjack (3.8.5):
+    - CocoaLumberjack/Core (= 3.8.5)
+  - CocoaLumberjack/Core (3.8.5)
+  - FBSnapshotTestCase (2.1.4):
+    - FBSnapshotTestCase/SwiftSupport (= 2.1.4)
+  - FBSnapshotTestCase/Core (2.1.4)
+  - FBSnapshotTestCase/SwiftSupport (2.1.4):
+    - FBSnapshotTestCase/Core
+  - iOSSnapshotTestCase (8.0.0):
+    - iOSSnapshotTestCase/SwiftSupport (= 8.0.0)
+  - iOSSnapshotTestCase/Core (8.0.0)
+  - iOSSnapshotTestCase/SwiftSupport (8.0.0):
+    - iOSSnapshotTestCase/Core
+  - Kingfisher (8.3.2)
+  - Moya (15.0.0):
+    - Moya/Core (= 15.0.0)
+  - Moya/Core (15.0.0):
+    - Alamofire (~> 5.0)
+  - Nimble (10.0.0)
+  - Nimble-Snapshots (9.4.0):
+    - Nimble-Snapshots/Core (= 9.4.0)
+  - Nimble-Snapshots/Core (9.4.0):
+    - iOSSnapshotTestCase (~> 8.0)
+    - Nimble
+  - "NSObject+Rx (5.2.2)":
+    - RxSwift (~> 6.2)
+  - ObjectMapper (4.4.2)
+  - ProgressHUD (14.1.1)
+  - PromiseKit (8.2.0):
+    - PromiseKit/CorePromise (= 8.2.0)
+    - PromiseKit/Foundation (= 8.2.0)
+    - PromiseKit/UIKit (= 8.2.0)
+  - PromiseKit/CorePromise (8.2.0)
+  - PromiseKit/Foundation (8.2.0):
+    - PromiseKit/CorePromise
+  - PromiseKit/UIKit (8.2.0):
+    - PromiseKit/CorePromise
+  - Quick (2.2.1)
+  - RxCocoa (6.9.0):
+    - RxRelay (= 6.9.0)
+    - RxSwift (= 6.9.0)
+  - RxRelay (6.9.0):
+    - RxSwift (= 6.9.0)
+  - RxSwift (6.9.0)
+  - SnapKit (5.7.1)
+  - Toast-Swift (5.1.1)
+
+DEPENDENCIES:
+  - AppStart (from `../`)
+  - FBSnapshotTestCase (~> 2.1.4)
+  - Nimble (~> 10.0.0)
+  - Nimble-Snapshots (~> 9.4.0)
+  - Quick (~> 2.2.0)
+
+SPEC REPOS:
+  trunk:
+    - Alamofire
+    - CocoaLumberjack
+    - FBSnapshotTestCase
+    - iOSSnapshotTestCase
+    - Kingfisher
+    - Moya
+    - Nimble
+    - Nimble-Snapshots
+    - "NSObject+Rx"
+    - ObjectMapper
+    - ProgressHUD
+    - PromiseKit
+    - Quick
+    - RxCocoa
+    - RxRelay
+    - RxSwift
+    - SnapKit
+    - Toast-Swift
+
+EXTERNAL SOURCES:
+  AppStart:
+    :path: "../"
+
+SPEC CHECKSUMS:
+  Alamofire: 7193b3b92c74a07f85569e1a6c4f4237291e7496
+  AppStart: 9b39d92d4b612c1ec3746f5e5c37b6567e82e2b7
+  CocoaLumberjack: 6a459bc897d6d80bd1b8c78482ec7ad05dffc3f0
+  FBSnapshotTestCase: 094f9f314decbabe373b87cc339bea235a63e07a
+  iOSSnapshotTestCase: a670511f9ee3829c2b9c23e6e68f315fd7b6790f
+  Kingfisher: 0621d0ac0c78fecb19f6dc5303bde2b52abaf2f5
+  Moya: 138f0573e53411fb3dc17016add0b748dfbd78ee
+  Nimble: 5316ef81a170ce87baf72dd961f22f89a602ff84
+  Nimble-Snapshots: ef281b908c604f78c8313587e25ea92c8ab513d7
+  "NSObject+Rx": 61cf1f7306a73dcef8b36649198af0813ec18dfd
+  ObjectMapper: e6e4d91ff7f2861df7aecc536c92d8363f4c9677
+  ProgressHUD: abb9136ae23c85204236828562cb9a8ec98efb44
+  PromiseKit: 74e6ab5894856b4762fef547055c809bca91d440
+  Quick: f5754d69b7013f5864c29aab9ae6f0c79c5bc200
+  RxCocoa: ac16414696ae706516be3e1ab00fcce5bdc9be8a
+  RxRelay: 6b0c930e5cef57d5fe2032571e5e65b78e3cbdb1
+  RxSwift: 31649ace6aceeb422e16ff71c60804f9c3281ed9
+  SnapKit: d612e99e678a2d3b95bf60b0705ed0a35c03484a
+  Toast-Swift: 7a03a532afe3a560d4044bc7c237e2864d295173
+
+PODFILE CHECKSUM: 03adc455bda4a634ec068023d0a4edf01e6684ae
+
+COCOAPODS: 1.16.2
