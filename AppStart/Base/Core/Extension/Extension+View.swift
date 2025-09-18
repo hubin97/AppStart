@@ -292,9 +292,8 @@ extension Extension_View {
     ///   - locations: 调整渐变空间, 注意locations和colors个数一致
     ///   - direction: 渐变方向
     public func setGradientColor(colors: [UIColor], locations: [NSNumber]? = nil, direction: GradientDirection) {
-        for item in self.layer.sublayers ?? []  where item is CAGradientLayer {
-            item.removeFromSuperlayer()
-        }
+        self.layer.sublayers?.removeAll(where: { $0 is CAGradientLayer })
+
         let gradient = CAGradientLayer.init()
         gradient.frame = self.bounds
         gradient.colors = colors.map({ $0.cgColor })
@@ -318,6 +317,11 @@ extension Extension_View {
             break
         }
         self.layer.insertSublayer(gradient, at: 0)
+    }
+    
+    /// 移除渐变色设置
+    public func removeGradientColor() {
+        self.layer.sublayers?.removeAll(where: { $0 is CAGradientLayer })
     }
 
     //MARK: 视图截取

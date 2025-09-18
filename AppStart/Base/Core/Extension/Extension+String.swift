@@ -10,6 +10,7 @@
 import Foundation
 import CoreFoundation
 import CommonCrypto
+import CryptoKit
 
 //MARK: - global var and methods
 fileprivate typealias Extension_String = String
@@ -191,31 +192,52 @@ extension Extension_String {
         return self.data(using: String.Encoding.utf8)
     }
 
-    /// md5加密
+    /// md5加密, 不安全, 不推荐
     /// - Returns: 加密后的字符串
-    public func md5() -> String {
-        let str = self.cString(using: String.Encoding.utf8)
-        let strLen = CUnsignedInt(self.lengthOfBytes(using: String.Encoding.utf8))
-        let digestLen = Int(CC_MD5_DIGEST_LENGTH)
-        let result = UnsafeMutablePointer<UInt8>.allocate(capacity: 16)
-        CC_MD5(str!, strLen, result)
-        let hash = NSMutableString()
-        for i in 0 ..< digestLen {
-            hash.appendFormat("%02x", result[i])
+//    public func md5() -> String {
+//        let str = self.cString(using: String.Encoding.utf8)
+//        let strLen = CUnsignedInt(self.lengthOfBytes(using: String.Encoding.utf8))
+//        let digestLen = Int(CC_MD5_DIGEST_LENGTH)
+//        let result = UnsafeMutablePointer<UInt8>.allocate(capacity: 16)
+//        CC_MD5(str!, strLen, result)
+//        let hash = NSMutableString()
+//        for i in 0 ..< digestLen {
+//            hash.appendFormat("%02x", result[i])
+//        }
+//        free(result)
+//        return String(format: hash as String)
+//    }
+    public var md5: String {
+        let data = Data(self.utf8)
+        var digest = [UInt8](repeating: 0, count: Int(CC_MD5_DIGEST_LENGTH))
+        data.withUnsafeBytes {
+            _ = CC_MD5($0.baseAddress, CC_LONG(data.count), &digest)
         }
-        free(result)
-        return String(format: hash as String)
+        return digest.map { String(format: "%02x", $0) }.joined()
     }
-
+    
     /// SHA256加密
     /// import CommonCrypto
     /// SHA 是 Secure Hash Algorithm 的缩写，即安全哈希算法。
     /// SHA256 也称为 SHA2，它是从SHA1进化而来，目前没有发现SHA256被破坏，但随着计算机计算能力越来越强大，它肯定会被破坏，所以SHA3已经在路上了。
-    public func sha256() -> String {
-        let utf8 = cString(using: .utf8)
-        var digest = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
-        CC_SHA256(utf8, CC_LONG(utf8!.count - 1), &digest)
-        return digest.reduce("") { $0 + String(format:"%02x", $1) }
+//    public func sha256() -> String {
+//        let utf8 = cString(using: .utf8)
+//        var digest = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
+//        CC_SHA256(utf8, CC_LONG(utf8!.count - 1), &digest)
+//        return digest.reduce("") { $0 + String(format:"%02x", $1) }
+//    }
+    
+    public var sha1: String {
+        let data = Data(self.utf8)
+        let digest = Insecure.SHA1.hash(data: data)
+        return digest.map { String(format: "%02hhx", $0) }.joined()
+    }
+    
+    /// 相比 sha1, 推荐 sha256
+    public var sha256: String {
+        let data = Data(self.utf8)
+        let digest = SHA256.hash(data: data)
+        return digest.map { String(format: "%02x", $0) }.joined()
     }
 
     /// base64编码
@@ -399,6 +421,30 @@ extension Extension_String {
 
 extension Extension_String {
 
+    /// URL参数拼接 在 URL 中追加 query 参数（自动处理 ? & 和 #fragment）
+    ///
+    ///  let baseUrl = "https://xxx.com/pages/member-flash-sale#2"
+    ///  let url = baseUrl
+    ///        .appendingQueryItem(name: "Language", value: "en-US")
+    ///        .appendingQueryItem(name: "openSource", value: "App")
+    ///        .appendingQueryItem(name: "APPTOKEN", value: "123456")
+    ///        .appendingQueryItem(name: "globalEnv", value: "NA")
+    ///        .appendingQueryItem(name: "appVersion", value: "2.1.1")
+    ///
+    ///    https://xxx.com/pages/member-flash-sale?Language=en-US&openSource=App&APPTOKEN=123456&globalEnv=NA&appVersion=2.1.1#2
+    ///
+    /// - Parameters:
+    ///   - name: 键
+    ///   - value: 值
+    /// - Returns: 拼接结果
+    public func appendingQueryItem(name: String, value: String) -> String {
+        guard var components = URLComponents(string: self) else { return self }
+        var queryItems = components.queryItems ?? []
+        queryItems.append(URLQueryItem(name: name, value: value))
+        components.queryItems = queryItems
+        return components.string ?? self
+    }
+    
     /// 字符串转Html
     public func toHtml() -> String {
 //        let styleStr: String = String(format: "<head><style>img{max-width:%ldpx !important;}ul {margin:0; padding:0; text-align:left;}</style><head>", kScreenW  * 0.95)
