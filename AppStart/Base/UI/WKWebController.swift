@@ -39,6 +39,9 @@ open class WKWebController: ViewController, WKWebScriptMsgHandleAble {
         config.preferences = WKPreferences()
         config.preferences.minimumFontSize = 10
         config.preferences.javaScriptEnabled = true
+        // web页视频内联播放支持必须加上下面两行,这点与Safari不一样
+        config.allowsInlineMediaPlayback = true
+        config.mediaTypesRequiringUserActionForPlayback = []
         //config.preferences.allowsContentJavaScript = true
         //config.preferences.javaScriptCanOpenWindowsAutomatically = false
         let js_source = "document.documentElement.style.webkitTouchCallout='none';" + "document.documentElement.style.webkitUserSelect='none';"
@@ -59,6 +62,12 @@ open class WKWebController: ViewController, WKWebScriptMsgHandleAble {
         } else {
             self.automaticallyAdjustsScrollViewInsets = false
         }
+#if DEBUG
+        // FIXME: debug模式开启webView->Safari调试功能
+        if #available(iOS 16.4, *) {
+            wkWebView.isInspectable = true
+        }
+#endif
         return wkWebView
     }()
     
@@ -324,6 +333,19 @@ extension WKWebController: WKUIDelegate, WKNavigationDelegate {
     }
 }
 
+// MARK: - Weak wrapper
+private class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
+    weak var delegate: WKScriptMessageHandler?
+
+    init(delegate: WKScriptMessageHandler) {
+        self.delegate = delegate
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        delegate?.userContentController(userContentController, didReceive: message)
+    }
+}
+
 // MARK: - WKWebScriptMsgHandleAble
 public protocol WKWebScriptMsgHandleAble: WKScriptMessageHandler {
     
@@ -354,9 +376,18 @@ extension WKWebScriptMsgHandleAble {
     }
     
     /// 建议只注册一个标识, 通过配置的参数体区分调用即可
+//    public func addMethod(name: String) {
+//        self.wkMethodName = name
+//        self.wkConfig.userContentController.add(self, name: name)
+//    }
+    
+    /// 自动用 WeakScriptMessageHandler 包装，避免循环引用
     public func addMethod(name: String) {
         self.wkMethodName = name
-        self.wkConfig.userContentController.add(self, name: name)
+        self.wkConfig.userContentController.add(
+            WeakScriptMessageHandler(delegate: self),
+            name: name
+        )
     }
     
     /// 回调到外部 message.body可以固定格式: {"action":"xxx","param":{}}
