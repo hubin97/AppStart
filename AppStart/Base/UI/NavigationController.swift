@@ -29,8 +29,17 @@ open class NavigationController: UINavigationController {
 //        }        
     }
     
-    open override var preferredStatusBarStyle: UIStatusBarStyle {
-        return self.topViewController?.preferredStatusBarStyle ?? .default
+    //    override var preferredStatusBarStyle: UIStatusBarStyle {
+    //        return self.topViewController?.preferredStatusBarStyle ?? .default
+    //    }
+      
+    /// `官方推荐`的用于管理状态栏样式的机制
+    open override var childForStatusBarStyle: UIViewController? {
+        return topViewController
+    }
+    
+    open override var childForStatusBarHidden: UIViewController? {
+        return topViewController
     }
     
     /// 便捷初始化

@@ -9,7 +9,7 @@
 
 Pod::Spec.new do |s|
   s.name             = 'AppStart'
-  s.version          = '0.1.0'
+  s.version          = '0.1.1'
   s.summary     = "A foundational component library for customizable app development."
   s.description = <<-DESC
   基础组件库，用于高效构建和定制相关应用。
@@ -31,7 +31,7 @@ Pod::Spec.new do |s|
   s.subspec 'Base' do |base|
       # 使用 Ruby 数组简化多个依赖的定义
       # 扩展自定义Hud;  pod 'ProgressHUD', :git => 'https://github.com/hubin97/ProgressHUD.git'
-      ['SnapKit', 'Kingfisher', 'Toast-Swift', 'ProgressHUD'].each do |dd|
+      ['SnapKit', 'Kingfisher', 'Toast-Swift', 'ProgressHUD', 'PromiseKit'].each do |dd|
           base.dependency dd
       end
       

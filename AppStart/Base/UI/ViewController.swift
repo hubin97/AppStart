@@ -82,6 +82,35 @@ open class ViewController: UIViewController, Navigatable, NaviBarDelegate {
         print("\(String(describing: type(of: self))) deinit")
     }
     
+    // MARK: 状态栏
+    // 注意: 依赖
+    // 1. Info.plist 设置 View controller-based status bar appearance = YES
+    // 2. UINavigationController 重写了childForStatusBarStyle, childForStatusBarHidden方法
+    private(set) var statusBarStyle: UIStatusBarStyle = .darkContent
+    open override var preferredStatusBarStyle: UIStatusBarStyle {
+        return statusBarStyle
+    }
+    
+    /// 刷新状态栏样式
+    public func updateStatusBar(with style: UIStatusBarStyle) {
+        guard statusBarStyle != style else { return }
+        self.statusBarStyle = style
+        self.setNeedsStatusBarAppearanceUpdate()
+    }
+    
+    open override var prefersStatusBarHidden: Bool {
+        return hideStatusBar
+    }
+    
+    /// 显示/隐藏状态栏
+    public var hideStatusBar = false {
+        didSet {
+            if oldValue != hideStatusBar {
+                self.setNeedsStatusBarAppearanceUpdate()
+            }
+        }
+    }
+
     // MARK: 配置
     /// 设置布局
     open func setupLayout() {

@@ -10,17 +10,20 @@ PODS:
     - AppStart/Base/UI (= 0.1.0)
     - Kingfisher
     - ProgressHUD
+    - PromiseKit
     - SnapKit
     - Toast-Swift
   - AppStart/Base/Core (0.1.0):
     - Kingfisher
     - ProgressHUD
+    - PromiseKit
     - SnapKit
     - Toast-Swift
   - AppStart/Base/UI (0.1.0):
     - AppStart/Base/Core
     - Kingfisher
     - ProgressHUD
+    - PromiseKit
     - SnapKit
     - Toast-Swift
   - AppStart/BLE (0.1.0):
@@ -130,7 +133,7 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   Alamofire: 7193b3b92c74a07f85569e1a6c4f4237291e7496
-  AppStart: 68eb0fd90dd0dbb2b775e4458427c8ab32818f82
+  AppStart: 5e984a7232dda598aa40ab2c2a6796031a9c37a9
   CocoaLumberjack: 6a459bc897d6d80bd1b8c78482ec7ad05dffc3f0
   Kingfisher: 0621d0ac0c78fecb19f6dc5303bde2b52abaf2f5
   Moya: 138f0573e53411fb3dc17016add0b748dfbd78ee
