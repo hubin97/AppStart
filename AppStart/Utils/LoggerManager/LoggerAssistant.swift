@@ -15,15 +15,6 @@ open class LoggerAssistant: UIView {
     private var beginPoint: CGPoint?
     private var movedPoint: CGPoint?
     
-    /// 获取主窗口
-    let appKeyWindow: UIWindow? = {
-        if #available(iOS 13, *) {
-            return UIApplication.shared.windows.first(where: { $0.isKeyWindow })
-        } else {
-            return UIApplication.shared.keyWindow
-        }
-    }()
-    
     override init(frame: CGRect) {
         super.init(frame: frame)
     }
@@ -35,8 +26,8 @@ open class LoggerAssistant: UIView {
     required convenience public init(size: CGSize? = nil, icon: UIImage? = nil, tapEvent: @escaping (() -> Void)) {
         self.init()
         defer {
-            appKeyWindow?.addSubview(self)
-            appKeyWindow?.bringSubviewToFront(self)
+            kAppKeyWindow?.addSubview(self)
+            kAppKeyWindow?.bringSubviewToFront(self)
         }
         self.icon = icon
         self.tapEventBlock = tapEvent
@@ -83,16 +74,17 @@ extension LoggerAssistant {
     }
     
     @objc func panGes(_ pan: UIPanGestureRecognizer) {
+        guard let keyWindow = kAppKeyWindow else { return }
         switch pan.state {
         case .began:
-            beginPoint = pan.location(in: UIApplication.shared.delegate?.window!)
+            beginPoint = pan.location(in: keyWindow)
             break
         case .changed:
-            movedPoint = pan.location(in: UIApplication.shared.delegate?.window!)
+            movedPoint = pan.location(in: keyWindow)
             self.center = movedPoint ?? self.center
             break
         case .ended, .cancelled:
-            let ePoint = pan.location(in: UIApplication.shared.delegate?.window!)
+            let ePoint = pan.location(in: keyWindow)
             let screenW = UIScreen.main.bounds.size.width
             let screenH = UIScreen.main.bounds.size.height
 

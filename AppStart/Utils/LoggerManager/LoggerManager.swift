@@ -11,51 +11,109 @@ import CocoaLumberjack
 // MARK: - global var and methods
 //private let KdateFormatString = "yyyy/MM/dd HH:mm:ss"
 
+/// 使用示例:
+/// LogM.shared.launch(logLevel, logMode: .detail).entrance(R.image.lanuch_logo())
+/// LogM.shared.setup(level: logLevel, consoleMode: .easy, fileMode: .detail).entrance(R.image.lanuch_logo())
 public typealias LogM = LoggerManager
+
 // MARK: - main class
 open class LoggerManager {
 
     public static let shared = LoggerManager()
     
     // 定义Log等级 *  Error, warning, info, debug and verbose logs
-    public var logLevel: DDLogLevel = .all
+    internal var logLevel: DDLogLevel = .all
+    
+    private var consoleMode: LoggerFormatter.LogMode = .easy
+    private var fileMode: LoggerFormatter.LogMode = .detail
+    private var customFileLogger: DDFileLogger? // 支持外部传入
     
     // 指定日志存放路径
-    public let path = (QuickPaths.documentPath ?? "") + "/Logs"
+    private let logDirectoryPath = (QuickPaths.documentPath ?? "") + "/Logs"
 
-    /// 存7天
-    open lazy var fileLogger: DDFileLogger = {
+    // 默认文件 Logger (改为文件大小分片 2mb; 最多10个文件, 文件夹容量最大20M)
+    private lazy var defaultFileLogger: DDFileLogger = {
         // 初始化 日志文件夹的路径
-        let _fileLogger = DDFileLogger(logFileManager: DDLogFileManagerDefault(logsDirectory: path))
+        let _fileLogger = DDFileLogger(logFileManager: DDLogFileManagerDefault(logsDirectory: logDirectoryPath))
         // 重用log文件，不要每次启动都创建新的log文件(默认值是false)
         _fileLogger.doNotReuseLogFiles = false
         // 禁用文件大小滚动
-        _fileLogger.maximumFileSize = 0
-        // log文件在24小时内有效，超过时间创建新log文件(默认值是24小时)
-        _fileLogger.rollingFrequency = 60 * 60 * 24
-        // 最多保存7个log文件
-        _fileLogger.logFileManager.maximumNumberOfLogFiles = 7
-        // log文件夹最多保存20M
-        _fileLogger.logFileManager.logFilesDiskQuota = 1024 * 1024 * 20
-        _fileLogger.logFormatter = LoggerFormatter(mode: .detail)
+        //_fileLogger.maximumFileSize = 0
+        _fileLogger.maximumFileSize = 2 * 1024 * 1024   // 单个文件最大2MB
+        _fileLogger.rollingFrequency = 0  // 禁用按时间滚动 (时间切割)
+        _fileLogger.logFileManager.maximumNumberOfLogFiles = 10  // 最多保存10个文件
+        _fileLogger.logFileManager.logFilesDiskQuota = 1024 * 1024 * 20 // log文件夹最多保存20M
         return _fileLogger
     }()
     
-    /// 开启日志记录
-    /// - Parameters:
-    ///   - logLevel: 日志级别
-    ///   - logMode: 日志模式, 默认简易模式
-    /// - Returns:
+    // 对外提供路径只读访问
+    public var logPath: String {
+        if let customFileLogger = customFileLogger,
+           let logsDirectory = (customFileLogger.logFileManager as? DDLogFileManagerDefault)?.logsDirectory {
+            return logsDirectory
+        }
+        return logDirectoryPath
+    }
+
+    // MARK: - 链式配置
     @discardableResult
-    public func launch(_ logLevel: DDLogLevel = .all, logMode: LoggerFormatter.LogMode = .easy) -> Self {
-        self.logLevel = logLevel
-        let ddosLogger = DDOSLogger.sharedInstance
-        ddosLogger.logFormatter = LoggerFormatter(mode: logMode) // 应用自定义的日志格式器
-        DDLog.add(ddosLogger) // 添加一个控制台输出的日志记录器
-        DDLog.add(fileLogger)
+    public func level(_ level: DDLogLevel) -> Self {
+        self.logLevel = level
         return self
     }
     
+    @discardableResult
+    public func console(_ mode: LoggerFormatter.LogMode) -> Self {
+        self.consoleMode = mode
+        return self
+    }
+    
+    @discardableResult
+    public func file(_ mode: LoggerFormatter.LogMode) -> Self {
+        self.fileMode = mode
+        return self
+    }
+    
+    /// 外部传入 fileLogger
+    @discardableResult
+    public func fileLogger(_ logger: DDFileLogger) -> Self {
+        self.customFileLogger = logger
+        return self
+    }
+    
+    /// 快速启动（一次性配置）
+    @discardableResult
+    public func setup(level: DDLogLevel = .all,
+                      consoleMode: LoggerFormatter.LogMode = .easy,
+                      fileMode: LoggerFormatter.LogMode = .detail,
+                      fileLogger: DDFileLogger? = nil) -> Self {
+        self.logLevel = level
+        self.consoleMode = consoleMode
+        self.fileMode = fileMode
+        self.customFileLogger = fileLogger
+        return launch()
+    }
+    
+    /// 当前使用的文件日志
+    public var currentFileLogger: DDFileLogger {
+        return customFileLogger ?? defaultFileLogger
+    }
+    
+    /// 启动日志系统
+    @discardableResult
+    public func launch() -> Self {
+        // 控制台日志
+        let ddosLogger = DDOSLogger.sharedInstance
+        ddosLogger.logFormatter = LoggerFormatter(mode: consoleMode)
+        DDLog.add(ddosLogger, with: logLevel)
+        
+        // 文件日志（优先用外部传入的）
+        let fileLogger = currentFileLogger
+        fileLogger.logFormatter = LoggerFormatter(mode: fileMode)
+        DDLog.add(fileLogger, with: logLevel)
+        return self
+    }
+        
     /// 缓存设置图标
     private var cacheIcon: UIImage?
     /// 初始化日志入口
@@ -70,7 +128,7 @@ open class LoggerManager {
     
     /// 移除日志入口
     public func removeEntrance() {
-        kAppKeyWindow?.subviews.first(where: { $0.isKind(of: LoggerAssistant.classForCoder()) })?.removeFromSuperview()
+        kAppKeyWindow?.subviews.compactMap({ $0 as? LoggerAssistant }).forEach({ $0.removeFromSuperview() })
     }
 
     /// 是否已展示入口
@@ -133,33 +191,13 @@ extension LoggerManager {
 //    CocoaLumberjack/Sources/CocoaLumberjack/include/CocoaLumberjack/DDLogMacros.h:94:9: note: macro 'DDLogDebug' unavailable: function like macros not supported
 
     // 通用log方法
-    private static func log(_ message: String, level: DDLogLevel, flag: DDLogFlag) {
+    private static func log(_ message: String, level: DDLogLevel, flag: DDLogFlag, file: String = #file, function: String = #function, line: UInt = #line) {
         // 如果日志级别为 off，则不记录日志
         guard level != .off else { return }
-        DDLog.log(asynchronous: true, level: level, flag: flag, context: 0, file: #file, function: #function, line: #line, tag: nil, format: message, arguments: getVaList([]))
-    }
-        
-    /// 通用log方法
-    /// - Parameters:
-    ///   - level: 级别
-    ///   - message: 内容
-    public static func log(level: DDLogLevel, message: String) {
-        switch level {
-        case .off:
-            off()
-        case .error:
-            error(message)
-        case .warning:
-            warn(message)
-        case .info:
-            info(message)
-        case .debug:
-            debug(message)
-        case .verbose:
-            verbose(message)
-        case .all:
-            all(message)
-        }
+        //DDLog.log(asynchronous: true, level: level, flag: flag, context: 0, file: #file, function: #function, line: #line, tag: nil, format: message, arguments: getVaList([]))
+        // FIXME: 修正 `日志内容格式异常` 兼容问题
+        DDLog.log(asynchronous: true, level: level, flag: flag, context: 0, file: file, function: function, line: line, tag: nil,
+                  format: "%@", arguments: getVaList([message]))
     }
     
     /// 当 DDLogLevel 为 .off; 这意味着所有日志都被禁用。在这种情况下，设置什么样的 DDLogFlag，日志都不会被记录
@@ -167,30 +205,56 @@ extension LoggerManager {
         log("", level: .off, flag: .info)
     }
     
-    public static func error(_ message: String) {
-        log(message, level: .error, flag: .error)
+    public static func error(_ message: String, file: String = #file, function: String = #function, line: UInt = #line) {
+        log(message, level: .error, flag: .error, file: file, function: function, line: line)
     }
     
-    public static func warn(_ message: String) {
-        log(message, level: .warning, flag: .warning)
+    public static func warn(_ message: String, file: String = #file, function: String = #function, line: UInt = #line) {
+        log(message, level: .warning, flag: .warning, file: file, function: function, line: line)
     }
     
-    public static func info(_ message: String) {
-        log(message, level: .info, flag: .info)
+    public static func info(_ message: String, file: String = #file, function: String = #function, line: UInt = #line) {
+        log(message, level: .info, flag: .info, file: file, function: function, line: line)
     }
     
-    public static func debug(_ message: String) {
-        log(message, level: .debug, flag: .debug)
+    public static func debug(_ message: String, file: String = #file, function: String = #function, line: UInt = #line) {
+        log(message, level: .debug, flag: .debug, file: file, function: function, line: line)
     }
     
-    public static func verbose(_ message: String) {
-        log(message, level: .verbose, flag: .verbose)
+    public static func verbose(_ message: String, file: String = #file, function: String = #function, line: UInt = #line) {
+        log(message, level: .verbose, flag: .verbose, file: file, function: function, line: line)
     }
     
     /// 当 DDLogLevel 为 .all; 这意味着所有级别的日志都将被记录。在这种情况下，可以根据需要设置 DDLogFlag。
     /// 例如，如果你想记录所有类型的日志，可以使用 .verbose 标志。
-    public static func all(_ message: String) {
-        log(message, level: .all, flag: .verbose)
+    public static func all(_ message: String, file: String = #file, function: String = #function, line: UInt = #line) {
+        log(message, level: .all, flag: .verbose, file: file, function: function, line: line)
+    }
+    
+    /// 通用log方法 (汇总)
+    /// - Parameters:
+    ///   - level: 级别
+    ///   - message: 内容
+    ///   修正 日志写入本地格式异常
+    public static func log(level: DDLogLevel, message: String, file: String = #file, function: String = #function, line: UInt = #line) {
+        switch level {
+        case .off:
+            off()
+        case .error:
+            error(message, file: file, function: function, line: line)
+        case .warning:
+            warn(message, file: file, function: function, line: line)
+        case .info:
+            info(message, file: file, function: function, line: line)
+        case .debug:
+            debug(message, file: file, function: function, line: line)
+        case .verbose:
+            verbose(message, file: file, function: function, line: line)
+        case .all:
+            all(message, file: file, function: function, line: line)
+        @unknown default:
+            off()
+        }
     }
 }
 
@@ -263,7 +327,12 @@ open class LoggerFormatter: NSObject, DDLogFormatter {
         case .easy:
             return "[\(time)] [\(flag)]" + " " + message
         case .detail:
-            return "[\(time)] [\(flag)]" + " " +  "[\(logMessage.threadID)][\(logMessage.fileName):\(logMessage.line) \(logMessage.function ?? "")]" + " " + message
+            // 📌 如果传空 文件名, 且行默认0, 标记为 简易日志 输出
+            if logMessage.fileName.isEmpty && logMessage.line == 0 {
+                return "[\(time)] [\(flag)]" + " " + message
+            }
+            // [\(logMessage.threadID)]
+            return "[\(time)] [\(flag)]" + " " +  "[\(logMessage.fileName):\(logMessage.line) \(logMessage.function ?? "")]" + " " + message
         }
     }
 }

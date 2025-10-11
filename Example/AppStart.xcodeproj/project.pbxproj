@@ -506,6 +506,7 @@
 			baseConfigurationReference = DBB987FFDACB2D13FB404690 /* Pods-AppStart_Example.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = YP9F4937J4;
 				INFOPLIST_FILE = AppStart/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 14;
@@ -523,6 +524,7 @@
 			baseConfigurationReference = E9B63222FBD2BE75BB23C2FA /* Pods-AppStart_Example.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = YP9F4937J4;
 				INFOPLIST_FILE = AppStart/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 14;

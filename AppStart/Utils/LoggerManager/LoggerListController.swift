@@ -9,21 +9,14 @@ import Foundation
 import CocoaLumberjack
 
 // MARK: - main class
-class LoggerListController: UIViewController {
+class LoggerListController: ViewController {
 
     open lazy var logFiles: [DDLogFileInfo] = {
-        return LoggerManager.shared.fileLogger.logFileManager.sortedLogFileInfos
+        return LoggerManager.shared.currentFileLogger.logFileManager.sortedLogFileInfos
     }()
-
-//    open lazy var dateFormatter: DateFormatter = {
-//        let _dateFormatter = DateFormatter.init()
-//        _dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-//        _dateFormatter.timeZone = TimeZone.current
-//        return _dateFormatter
-//    }()
     
     open lazy var listView: UITableView = {
-        let listView = UITableView.init(frame: CGRect(x: 0, y: 0, width: kScreenW, height: kScreenH), style: .plain)
+        let listView = UITableView.init(frame: CGRect(x: 0, y: kNavBarAndSafeHeight, width: kScreenW, height: kScreenH - kNavBarAndSafeHeight - kBottomSafeHeight), style: .plain)
         listView.register(UITableViewCell.self, forCellReuseIdentifier: NSStringFromClass(UITableViewCell.self))
         listView.tableFooterView = UIView.init(frame: CGRect.zero)
         listView.dataSource = self
@@ -34,15 +27,10 @@ class LoggerListController: UIViewController {
     
     open override func viewDidLoad() {
         super.viewDidLoad()
-        self.navigationItem.title = "日志列表"
-        view.addSubview(listView)
+        self.naviBar.title = "日志列表"
+        self.view.addSubview(listView)
         LoggerManager.shared.removeEntrance()
         // DDLogInfo("LoggerManager LogFiles Count:\(logFiles.count)")
-    }
-
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        self.navigationController?.setNavigationBarHidden(false, animated: false)
     }
     
     deinit {
@@ -87,22 +75,22 @@ extension LoggerListController: UITableViewDataSource, UITableViewDelegate {
 }
 
 // MARK: - other classes
-class LoggerDetailController: UIViewController {
+class LoggerDetailController: ViewController {
 
     var file: DDLogFileInfo?
     open lazy var logTextView: UITextView = {
-        let _logTextView = UITextView.init(frame: CGRect(x: 0, y: 0, width: kScreenW, height: kScreenH - kBottomSafeHeight))
+        let _logTextView = UITextView.init(frame: CGRect(x: 0, y: kNavBarAndSafeHeight, width: kScreenW, height: kScreenH - kNavBarAndSafeHeight - kBottomSafeHeight))
         _logTextView.isEditable = false
         return _logTextView
     }()
     
-    lazy var bottomButton: UIButton = {
-        let _bottomItem = UIButton(type: .custom)
-        _bottomItem.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
-        _bottomItem.setTitle("底部", for: .normal)
-        _bottomItem.setTitleColor(.black, for: .normal)
-        _bottomItem.addTarget(self, action: #selector(scrollToBottom), for: .touchUpInside)
-        return _bottomItem
+    lazy var shareButton: UIButton = {
+        let _shareButton = UIButton(type: .custom)
+        _shareButton.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
+        _shareButton.setTitle("分享", for: .normal)
+        _shareButton.setTitleColor(.black, for: .normal)
+        _shareButton.addTarget(self, action: #selector(shareFile), for: .touchUpInside)
+        return _shareButton
     }()
     
     lazy var fileButton: UIButton = {
@@ -116,24 +104,26 @@ class LoggerDetailController: UIViewController {
     
     lazy var titleView: UIView = {
         let _titleView = UIView(frame: CGRect(x: 0, y: 0, width: 88 + 12, height: 44))
-        _titleView.addSubview(bottomButton)
+        _titleView.addSubview(shareButton)
         _titleView.addSubview(fileButton)
         return _titleView
     }()
 
     open override func viewDidLoad() {
         super.viewDidLoad()
-        self.navigationItem.title = "日志详情"
-        self.navigationItem.rightBarButtonItem = UIBarButtonItem(customView: titleView)
-
-        view.addSubview(logTextView)
+        self.naviBar.title = "日志详情"
+        self.naviBar.setRightView(titleView)
+        self.view.addSubview(logTextView)
         if let fpath = file?.filePath, let fdata = try? Data.init(contentsOf: URL.init(fileURLWithPath: fpath)) {
             logTextView.text = String(data: fdata, encoding: .utf8)
         }
     }
 
-    @objc func scrollToBottom() {
-        self.logTextView.scrollRangeToVisible(NSRange(location: self.logTextView.text.count - 1, length: 1))
+    @objc func shareFile() {
+        //self.logTextView.scrollRangeToVisible(NSRange(location: self.logTextView.text.count - 1, length: 1))
+        guard let fpath = file?.filePath else { return }
+        let fUrl = URL(fileURLWithPath: fpath)
+        self.shareLogFile(at: fUrl, from: self)
     }
 
     @objc func saveToFile() {
@@ -143,6 +133,21 @@ class LoggerDetailController: UIViewController {
         documentVc.delegate = self
         documentVc.modalPresentationStyle = .pageSheet
         self.navigationController?.present(documentVc, animated: true, completion: nil)
+    }
+    
+    // 文件分享
+    func shareLogFile(at fileURL: URL, from viewController: UIViewController) {
+        // 准备分享内容
+        let activityVC = UIActivityViewController(activityItems: [fileURL], applicationActivities: nil)
+        
+        // iPad 适配 - 需要弹出源视图
+        if let popover = activityVC.popoverPresentationController {
+            popover.sourceView = viewController.view
+            popover.sourceRect = CGRect(x: viewController.view.bounds.midX, y: viewController.view.bounds.midY, width: 0, height: 0)
+            popover.permittedArrowDirections = []
+        }
+        // 弹出分享面板
+        viewController.present(activityVC, animated: true, completion: nil)
     }
 }
 

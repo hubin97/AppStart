@@ -115,12 +115,13 @@ public class NetworkPrintlnPlugin: PluginType {
 
     public static let shared = NetworkPrintlnPlugin()
     /// 设置打印日志级别, 默认 off为关闭,
+    /// UPDATE: 250812 网络日志默认 简易日志, 即使debug模式写文件
     public var loglevel: DDLogLevel = .off
     
     /// 是否打印response.description
     public static var showRspDesc = false
 
-    fileprivate let loggerId = "Moya_Logger"
+    fileprivate let loggerId = "Moya"
     fileprivate let dateFormatString = "dd/MM/yyyy HH:mm:ss"
     fileprivate let dateFormatter = DateFormatter()
     var date: String {
@@ -141,8 +142,8 @@ public class NetworkPrintlnPlugin: PluginType {
     public func willSend(_ request: RequestType, target: TargetType) {
         guard currentLevel != .off else { return }
         let req_content = logNetworkRequest(request.request as URLRequest?)
-        LogM.log(level: currentLevel, message: "Request 🚀🚀🚀")
-        req_content.forEach({ LogM.log(level: currentLevel, message: "\($0)") })
+        LogM.log(level: currentLevel, message: "Request 🚀🚀🚀", file: "", line: 0)
+        req_content.forEach({ LogM.log(level: currentLevel, message: "\($0)", file: "", line: 0) })
     }
 
     /// Result库缺少导入, didReceive不执行
@@ -156,9 +157,9 @@ public class NetworkPrintlnPlugin: PluginType {
             rsp_content = logNetworkResponse(nil, data: nil, target: target)
         }
         
-        LogM.log(level: currentLevel, message: "Response ✨✨✨")
-        LogM.log(level: currentLevel, message: "PATH: \(target.path)")
-        rsp_content.forEach({ LogM.log(level: currentLevel, message:"\($0)") })
+        LogM.log(level: currentLevel, message: "Response ✨✨✨", file: "", line: 0)
+        LogM.log(level: currentLevel, message: "PATH: \(target.path)", file: "", line: 0)
+        rsp_content.forEach({ LogM.log(level: currentLevel, message:"\($0)", file: "", line: 0) })
     }
 
     func logNetworkRequest(_ request: URLRequest?) -> [String] {
