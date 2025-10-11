@@ -39,9 +39,9 @@ open class TabBarController: UITabBarController, UITabBarControllerDelegate, Nav
     
     open override func viewDidLoad() {
         super.viewDidLoad()
-        self.view.backgroundColor = .white
-        self.tabBar.isTranslucent = false
-        self.tabBar.barTintColor = .white
+        //self.view.backgroundColor = .white
+        //self.tabBar.isTranslucent = false
+        //self.tabBar.barTintColor = .white
         self.delegate = self
         self.bindViewModel()
     }

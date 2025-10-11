@@ -21,12 +21,18 @@ open class NavigationController: UINavigationController {
     
     open override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = UIColor.white
-        navigationBar.isTranslucent = false
-        
+        self.view.backgroundColor = .white
+        self.navigationBar.isTranslucent = false
+        self.delegate = self
+
 //        if responds(to: #selector(getter: interactivePopGestureRecognizer)) {
 //            delegate = self
 //        }        
+    }
+    
+    open override func viewWillLayoutSubviews() {
+        super.viewWillLayoutSubviews()
+        self.setupTabBarHidden(animated: true)
     }
     
     //    override var preferredStatusBarStyle: UIStatusBarStyle {
@@ -129,10 +135,33 @@ extension NavigationController: UINavigationControllerDelegate {
     
     // 自定义非根控制左侧返回按钮
     open override func pushViewController(_ viewController: UIViewController, animated: Bool) {
-        if children.count == 1 {
-            // 根控制tabBar隐藏其他控制底部
-            viewController.hidesBottomBarWhenPushed = true
-        }
+        defer { self.setupTabBarHidden(animated: animated) }
+        // 适用 < iOS 18 版本
+        let isHidden = viewControllers.count >= 1
+        viewController.hidesBottomBarWhenPushed = isHidden
         super.pushViewController(viewController, animated: animated)
+    }
+    
+    open override func popToViewController(_ viewController: UIViewController, animated: Bool) -> [UIViewController]? {
+        defer { self.setupTabBarHidden(animated: animated) }
+        return super.popToViewController(viewController, animated: animated)
+    }
+    
+    open override func popToRootViewController(animated: Bool) -> [UIViewController]? {
+        defer { self.setupTabBarHidden(animated: animated) }
+        return super.popToRootViewController(animated: animated)
+    }
+    
+    open override func popViewController(animated: Bool) -> UIViewController? {
+        defer { self.setupTabBarHidden(animated: animated) }
+        return super.popViewController(animated: animated)
+    }
+    
+    /// FIXME: 仅适用iOS18+, (`iOS26`上无法规避手势滑动, 如果pop滑动又取消掉了, 仍存在问题)
+    private func setupTabBarHidden(animated: Bool) {
+        if #available(iOS 18.0, *) {
+            let isHidden = viewControllers.count > 1
+            tabBarController?.setTabBarHidden(isHidden, animated: false)
+        }
     }
 }

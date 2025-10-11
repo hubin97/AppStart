@@ -68,15 +68,17 @@ extension Navigator {
             fatalError("You need to pass in a sender for .navigation or .modal transitions")
         }
         
-        if let nav = sender as? UINavigationController {
+        if let nav = sender as? NavigationController {
             nav.pushViewController(target, animated: animated)
             return
         }
         
         switch transition {
         case .navigation:
-            if let nav = sender.navigationController {
-                nav.pushViewController(target, animated: animated)
+            DispatchQueue.main.async {
+                if let nav = sender.navigationController as? NavigationController {
+                    nav.pushViewController(target, animated: animated)
+                }
             }
         case .modal(let type):
             DispatchQueue.main.async {
