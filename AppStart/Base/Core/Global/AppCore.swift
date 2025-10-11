@@ -11,7 +11,7 @@ import Foundation
 // 全局导入, 若主工程没有混编生成.pch文件, 可以使用此方法
 //@_exported import RxSwift
 
-//MARK: - Lay out
+// MARK: - Lay out
 /// 屏幕宽高
 public let kScreenW = UIScreen.main.bounds.size.width
 public let kScreenH = UIScreen.main.bounds.size.height
@@ -26,24 +26,6 @@ public func kScaleH(_ h: CGFloat) -> CGFloat { return kScaleH * h }
 public let kNavBarHeight: CGFloat = 44.0
 /// 默认标签栏高度
 public let kTabBarHeight: CGFloat = 49.0
-
-/// 状态栏高度 iPhone X (44.0) / iPhone 11 (48.0) / 20.0
-//public let kStatusBarHeight: CGFloat = UIApplication.shared.statusBarFrame.size.height
-
-/// 兼容适配  iOS 13 + 仅开启多任务屏时生效
-public let kStatusBarHeight: CGFloat = {
-    var statusBarHeight: CGFloat = 0
-    if #available(iOS 13.0, *), UIApplication.shared.connectedScenes.count > 0 {
-        let scene = UIApplication.shared.connectedScenes.first
-        guard let windowScene = scene as? UIWindowScene else { return 0 }
-        guard let statusBarManager = windowScene.statusBarManager else { return 0 }
-        statusBarHeight = statusBarManager.statusBarFrame.size.height
-    } else {
-        statusBarHeight = UIApplication.shared.statusBarFrame.size.height
-    }
-    return statusBarHeight
-}()
-
 
 /// 是否有前刘海  (iPhone X系统 iOS 11+)
 public let kIsHaveBangs = kStatusBarHeight > 20.0
@@ -60,9 +42,8 @@ public let kNavBarAndSafeHeight: CGFloat = kStatusBarHeight + kNavBarHeight
 /// tabbar和底部安全区域总高度
 public let kTabBarAndSafeHeight: CGFloat = kBottomSafeHeight + kTabBarHeight
 
-//MARK: - Info
-/// UIDevice
-/// systemVersion
+// MARK: - Info
+
 public let kSystemVersion = Float(UIDevice.current.systemVersion) ?? 0.0
 public let kiOS9Later  = (kSystemVersion >= 9)
 public let kiOS10Later = (kSystemVersion >= 10)
@@ -81,39 +62,83 @@ public let kAppVersion = kInfoPlist["CFBundleShortVersionString"] as? String
 /// Build号
 public let kAppBuildVersion = kInfoPlist["CFBundleVersion"] as? String
 
-/// 获取主窗口
-public let kAppKeyWindow: UIWindow? = {
-    if #available(iOS 13, *) {
-        return UIApplication.shared.windows.first(where: { $0.isKeyWindow })
-    } else {
-        return UIApplication.shared.keyWindow
-    }
-}()
+/// 判断当前应用是否启用了 SceneDelegate（即使用 UIScene 生命周期）
+///
+/// 当 Info.plist 中存在键 `UIApplicationSceneManifest` 时，
+/// 表示项目采用了多场景（Scene）架构；
+/// 否则依旧使用传统的 AppDelegate 生命周期。
+///
+/// - Returns: 如果启用了 SceneDelegate 返回 true，否则返回 false。
+private var isSceneEnabled: Bool {
+    return Bundle.main.object(forInfoDictionaryKey: "UIApplicationSceneManifest") != nil
+}
 
-/// Top of stack Vc
-public func stackTopViewController(_ vc: UIViewController? = nil) -> UIViewController? {
-    //注意UIApplication.shared.keyWindow?.rootViewController有时为nil 比如当页面有菊花在转的时候，这个rootViewController就为nil
-    //guard let tmpRootVc = kAppKeyWindow?.rootViewController else { return nil }
-    var rootVc = vc ?? kAppKeyWindow?.rootViewController
-   
-    /// 模态遍历
-    while rootVc?.presentedViewController != nil {
-        rootVc = rootVc?.presentedViewController
+/// 获取当前主窗口（兼容 SceneDelegate / 非 SceneDelegate 环境）
+///
+/// - 优先从当前前台激活的 Scene 中获取 keyWindow；
+/// - 若未启用 SceneDelegate 或没有活跃 Scene，则回退至 AppDelegate.window；
+/// - 若依然获取不到，则兜底从 UIApplication.windows 中查找；
+/// - 在 App Extension 环境下返回 nil（防止调用 UIApplication.shared 导致崩溃）。
+///
+public var kAppKeyWindow: UIWindow? {
+#if APP_EXTENSION
+    return nil
+#else
+    if isSceneEnabled {
+        return UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first { $0.isKeyWindow }
+    }
+    // 非 SceneDelegate 模式 或无活跃 Scene 时
+    return UIApplication.shared.delegate?.window
+        ?? UIApplication.shared.windows.first(where: { $0.isKeyWindow })
+#endif
+}
+
+/// 状态栏高度 iPhone X (44.0) / iPhone 11 (48.0) / 20.0
+//public let kStatusBarHeight: CGFloat = UIApplication.shared.statusBarFrame.size.height
+
+/// 获取状态栏高度  (兼容 SceneDelegate / 非 SceneDelegate 环境)
+public let kStatusBarHeight: CGFloat = {
+    if isSceneEnabled {
+        let activeScenes = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .filter { $0.activationState == .foregroundActive }
+        
+        if let scene = activeScenes.first,
+           let statusBarManager = scene.statusBarManager {
+            return statusBarManager.statusBarFrame.height
+        }
     }
     
-    var currentVc: UIViewController?
-    //presentedViewController 和presentingViewController
-    //当A弹出B //A.presentedViewController=B //B.presentingViewController=A
-    if rootVc?.presentedViewController != nil {
-        currentVc = stackTopViewController(rootVc?.presentedViewController)
-    } else if (rootVc?.isKind(of: UITabBarController.self) == true) {
-        currentVc = stackTopViewController((rootVc as! UITabBarController).selectedViewController)
-    } else if (rootVc?.isKind(of: UINavigationController.self) == true) {
-        currentVc = stackTopViewController((rootVc as! UINavigationController).visibleViewController)
-    } else {
-        currentVc = rootVc
+    // 非 Scene 模式或没有活跃 Scene 时
+    // UIApplication.shared.statusBarFrame 在 iOS 13+ 已废弃，但在 未启用 SceneDelegate 的项目，没有官方替代 API 能获取状态栏高度
+    return UIApplication.shared.statusBarFrame.height
+}()
+
+/// 获取当前最顶层显示的 UIViewController
+/// - Parameter vc: 可选的起始 UIViewController，默认从主窗口 rootViewController 开始
+/// - Returns: 当前屏幕上最顶层的 UIViewController（模态、Navigation、TabBar 都会展开）
+public func stackTopViewController(_ vc: UIViewController? = nil) -> UIViewController? {
+    // 从传入 VC 或主窗口 rootViewController 开始
+    var rootVc = vc ?? kAppKeyWindow?.rootViewController
+    guard let root = rootVc else { return nil }
+
+    // 1️⃣ 模态遍历，找到最顶层 presentedViewController
+    while let presented = rootVc?.presentedViewController {
+        rootVc = presented
     }
-    return currentVc
+
+    // 2️⃣ 递归展开 TabBar / Navigation 容器
+    if let tab = rootVc as? UITabBarController, let selected = tab.selectedViewController {
+        return stackTopViewController(selected)
+    } else if let nav = rootVc as? UINavigationController, let visible = nav.visibleViewController {
+        return stackTopViewController(visible)
+    }
+
+    // 3️⃣ 普通控制器，返回自己
+    return rootVc
 }
 
 /// 根据字符串获取工程中的对应Swift类
