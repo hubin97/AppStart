@@ -11,67 +11,31 @@ import Foundation
 // 全局导入, 若主工程没有混编生成.pch文件, 可以使用此方法
 //@_exported import RxSwift
 
-// MARK: - Lay out
-/// 屏幕宽高
-public let kScreenW = UIScreen.main.bounds.size.width
-public let kScreenH = UIScreen.main.bounds.size.height
+// MARK: - Scene Support
 
-/// 以iPhone6屏幕为设计底稿的比例换算
-public let kScaleW = kScreenW/375.0
-public let kScaleH = kScreenH/667.0
-public func kScaleW(_ w: CGFloat) -> CGFloat { return kScaleW * w }
-public func kScaleH(_ h: CGFloat) -> CGFloat { return kScaleH * h }
-
-/// 默认导航栏高度
-public let kNavBarHeight: CGFloat = 44.0
-/// 默认标签栏高度
-public let kTabBarHeight: CGFloat = 49.0
-
-/// 是否有前刘海  (iPhone X系统 iOS 11+)
-public let kIsHaveBangs = kStatusBarHeight > 20.0
-
-/// 顶部安全区域高度
-public let kTopSafeHeight: CGFloat = kIsHaveBangs ? kStatusBarHeight : 0
-
-/// 底部安全区域高度
-public let kBottomSafeHeight: CGFloat = kIsHaveBangs ? 34: 0.0
-
-/// 状态栏和导航栏总高度
-public let kNavBarAndSafeHeight: CGFloat = kStatusBarHeight + kNavBarHeight
-
-/// tabbar和底部安全区域总高度
-public let kTabBarAndSafeHeight: CGFloat = kBottomSafeHeight + kTabBarHeight
-
-// MARK: - Info
-
-public let kSystemVersion = Float(UIDevice.current.systemVersion) ?? 0.0
-public let kiOS9Later  = (kSystemVersion >= 9)
-public let kiOS10Later = (kSystemVersion >= 10)
-public let kiOS11Later = (kSystemVersion >= 11)
-public let kiOS12Later = (kSystemVersion >= 12)
-public let kiOS13Later = (kSystemVersion >= 13)
-public let kiOS14Later = (kSystemVersion >= 14)
-
-/// IDFVString
-public let kIDFVString = UIDevice.current.identifierForVendor?.uuidString
-
-/// info.plist
-public let kInfoPlist = Bundle.main.infoDictionary ?? Dictionary()
-/// 版本号（内部标示）
-public let kAppVersion = kInfoPlist["CFBundleShortVersionString"] as? String
-/// Build号
-public let kAppBuildVersion = kInfoPlist["CFBundleVersion"] as? String
-
-/// 判断当前应用是否启用了 SceneDelegate（即使用 UIScene 生命周期）
+/// 判断当前应用是否启用了 Scene 模式（即使用 UIWindowScene 生命周期）
 ///
-/// 当 Info.plist 中存在键 `UIApplicationSceneManifest` 时，
-/// 表示项目采用了多场景（Scene）架构；
-/// 否则依旧使用传统的 AppDelegate 生命周期。
+/// - iOS 13 及以上系统才可能启用 Scene；
+/// - 当 `UIApplication.shared.connectedScenes` 中存在 UIWindowScene 类型时，
+///   表示应用使用了多场景架构；（即 Info.plist 中配置了 UIApplicationSceneManifest）
 ///
-/// - Returns: 如果启用了 SceneDelegate 返回 true，否则返回 false。
-private var isSceneEnabled: Bool {
-    return Bundle.main.object(forInfoDictionaryKey: "UIApplicationSceneManifest") != nil
+/// - 对于旧项目或 App Extension，会返回 false。
+public var isSceneEnabled: Bool {
+    if #available(iOS 13.0, *) {
+        return UIApplication.shared.connectedScenes.contains { $0 is UIWindowScene }
+    }
+    return false
 }
+
+/// 当前激活的 UIWindowScene
+public var activeWindowScene: UIWindowScene? {
+    return UIApplication.shared.connectedScenes
+        .compactMap { $0 as? UIWindowScene }
+        .first { $0.activationState == .foregroundActive }
+}
+
+
+// MARK: - Window Access
 
 /// 获取当前主窗口（兼容 SceneDelegate / 非 SceneDelegate 环境）
 ///
@@ -84,38 +48,76 @@ public var kAppKeyWindow: UIWindow? {
 #if APP_EXTENSION
     return nil
 #else
-    if isSceneEnabled {
-        return UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap { $0.windows }
-            .first { $0.isKeyWindow }
-    }
-    // 非 SceneDelegate 模式 或无活跃 Scene 时
-    return UIApplication.shared.delegate?.window
-        ?? UIApplication.shared.windows.first(where: { $0.isKeyWindow })
+    activeWindowScene?.windows.first(where: \.isKeyWindow) ?? UIApplication.shared.windows.first(where: \.isKeyWindow)
 #endif
 }
+
+// MARK: - Lay out
 
 /// 状态栏高度 iPhone X (44.0) / iPhone 11 (48.0) / 20.0
 //public let kStatusBarHeight: CGFloat = UIApplication.shared.statusBarFrame.size.height
 
 /// 获取状态栏高度  (兼容 SceneDelegate / 非 SceneDelegate 环境)
-public let kStatusBarHeight: CGFloat = {
-    if isSceneEnabled {
-        let activeScenes = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .filter { $0.activationState == .foregroundActive }
-        
-        if let scene = activeScenes.first,
-           let statusBarManager = scene.statusBarManager {
-            return statusBarManager.statusBarFrame.height
-        }
-    }
-    
-    // 非 Scene 模式或没有活跃 Scene 时
+public var kStatusBarHeight: CGFloat {
     // UIApplication.shared.statusBarFrame 在 iOS 13+ 已废弃，但在 未启用 SceneDelegate 的项目，没有官方替代 API 能获取状态栏高度
-    return UIApplication.shared.statusBarFrame.height
-}()
+    activeWindowScene?.statusBarManager?.statusBarFrame.height ?? UIApplication.shared.statusBarFrame.height
+}
+
+/// 屏幕尺寸（动态）
+public var kScreenBounds: CGRect {
+    activeWindowScene?.screen.bounds ?? UIScreen.main.bounds
+}
+
+public var kScreenW: CGFloat { kScreenBounds.width }
+public var kScreenH: CGFloat { kScreenBounds.height }
+
+/// 以iPhone6屏幕为设计底稿的比例换算
+//public let kScaleW = kScreenW/375.0
+//public let kScaleH = kScreenH/667.0
+//public func kScaleW(_ w: CGFloat) -> CGFloat { return kScaleW * w }
+//public func kScaleH(_ h: CGFloat) -> CGFloat { return kScaleH * h }
+public func kScaleW(_ value: CGFloat) -> CGFloat { value * kScreenW / 375.0 }
+public func kScaleH(_ value: CGFloat) -> CGFloat { value * kScreenH / 667.0 }
+
+/// 默认导航栏高度
+public let kNavBarHeight: CGFloat = 44.0
+/// 默认标签栏高度
+public let kTabBarHeight: CGFloat = 49.0
+
+/// 获取当前 SafeAreaInsets
+public var kSafeAreaInsets: UIEdgeInsets { kAppKeyWindow?.safeAreaInsets ?? .zero }
+
+/// 是否有前刘海  (iPhone X系统 iOS 11+)
+// public let kIsHaveBangs = kStatusBarHeight > 20.0
+public var kIsHaveBangs: Bool { kSafeAreaInsets.bottom > 0 }
+
+/// 顶部安全区域高度
+public var kTopSafeHeight: CGFloat { kSafeAreaInsets.top }
+
+/// 底部安全区域高度
+public var kBottomSafeHeight: CGFloat { kSafeAreaInsets.bottom }
+
+/// 状态栏和导航栏总高度
+public var kNavBarAndSafeHeight: CGFloat { kStatusBarHeight + kNavBarHeight }
+
+/// tabbar和底部安全区域总高度
+public var kTabBarAndSafeHeight: CGFloat { kBottomSafeHeight + kTabBarHeight }
+
+// MARK: - Info
+
+public let kSystemVersion = Float(UIDevice.current.systemVersion) ?? 0.0
+public let kiOS13Later = (kSystemVersion >= 13)
+public let kiOS14Later = (kSystemVersion >= 14)
+
+/// IDFVString
+public let kIDFVString = UIDevice.current.identifierForVendor?.uuidString
+
+/// info.plist
+public let kInfoPlist = Bundle.main.infoDictionary ?? Dictionary()
+/// 版本号（内部标示）
+public let kAppVersion = kInfoPlist["CFBundleShortVersionString"] as? String
+/// Build号
+public let kAppBuildVersion = kInfoPlist["CFBundleVersion"] as? String
 
 /// 获取当前最顶层显示的 UIViewController
 /// - Parameter vc: 可选的起始 UIViewController，默认从主窗口 rootViewController 开始
