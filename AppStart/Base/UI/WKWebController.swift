@@ -71,6 +71,9 @@ open class WKWebController: ViewController, WKWebScriptMsgHandleAble {
         return wkWebView
     }()
     
+    /// 是否隐藏导航栏左侧视图(`返回按钮`), 注意仅首个页面有效(即`self.wkWebView.backForwardList.backList.isEmpty`)
+    public var isHideLeftView: Bool = false
+    
     // ----
     /// 是否显示进度条
     public var showProgress: Bool = true
@@ -145,10 +148,6 @@ open class WKWebController: ViewController, WKWebScriptMsgHandleAble {
         self.progressViewTintColor = .systemBlue
         
         self.addObserver()
-
-//        self.wkWebView.addObserver(self, forKeyPath: #keyPath(WKWebView.title), options: .new, context: nil)
-//        self.wkWebView.addObserver(self, forKeyPath: #keyPath(WKWebView.url), options: .new, context: nil)
-//        self.wkWebView.addObserver(self, forKeyPath: #keyPath(WKWebView.estimatedProgress), options: .new, context: nil)
     }
     
     open override func viewDidAppear(_ animated: Bool) {
@@ -194,9 +193,13 @@ open class WKWebController: ViewController, WKWebScriptMsgHandleAble {
     // 如果返回历史记录不为空, 则显示关闭按钮
     // https://www.facebook.com/groups/momcozyusercenter?utm_source=user+center&utm_medium=app&utm_campaign=app-banner&Language=zh-CN
     func updateBackForwardState() {
+        // 暂不适配RTL
+        guard !view.isRTL else { return }
         let isLast = self.wkWebView.backForwardList.backList.isEmpty
-        if !view.isRTL {
-            self.naviBar.setLeftView(isLast ? self.backButton: self.naviLeftView)
+        if isHideLeftView && isLast {
+            self.naviBar.leftView?.isHidden = true
+        } else {
+            self.naviBar.setLeftView(isLast ? backButton: naviLeftView)
         }
     }
 }
@@ -231,18 +234,49 @@ extension WKWebController {
             }
         })
     }
-
-    /// 加载网页 本地 或是 远端
-    public func loadWeb(urlPath: String, isLocalHtml: Bool = false, cachePolicy: NSURLRequest.CachePolicy = .useProtocolCachePolicy, timeout: TimeInterval = 20.0) {
-        print("LOAD_HTML_PATH>> \(urlPath)")
-        if isLocalHtml {
-            guard let htmlpath = Bundle.main.path(forResource: urlPath, ofType: nil) else { return }
-            guard let html = try? String.init(contentsOfFile: htmlpath, encoding: .utf8) else { return }
-            wkWebView.loadHTMLString(html, baseURL: Bundle.main.bundleURL)
-        } else {
-            if let url = URL(string: urlPath) {
-                wkWebView.load(URLRequest(url: url, cachePolicy: cachePolicy, timeoutInterval: timeout))
+    
+    /// 安全加载网页，本地或远程
+    /// - Parameters:
+    ///   - urlPath: 本地文件名（带扩展）或远程 URL
+    ///   - isLocal: 是否本地 HTML 文件
+    ///   - cachePolicy: 远程 URL 请求缓存策略
+    ///   - timeout: 远程 URL 超时时间
+    /// - Returns: 实际加载的 URL，如果失败返回 nil
+    @discardableResult
+    public func loadWeb(urlPath: String,
+                        isLocal: Bool = false,
+                        cachePolicy: NSURLRequest.CachePolicy = .useProtocolCachePolicy,
+                        timeout: TimeInterval = 20.0) -> URL? {
+        
+        print("LOAD_WEB_PATH >> \(urlPath)")
+        
+        if isLocal {
+            // 尝试从主工程 Bundle 找
+            let mainBundle = Bundle.main
+            let fileName = (urlPath as NSString).deletingPathExtension
+            let fileExtension = (urlPath as NSString).pathExtension
+            
+            guard let fileURL = mainBundle.url(forResource: fileName, withExtension: fileExtension) else {
+                print("❌ 本地文件未找到：\(urlPath)")
+                return nil
             }
+            
+            // 授权 WKWebView 访问同一目录，支持子目录资源
+            let readAccessURL = fileURL.deletingLastPathComponent()
+            
+            // 避免加载空白或沙盒错误，确保 URL 有效
+            wkWebView.loadFileURL(fileURL, allowingReadAccessTo: readAccessURL)
+            return fileURL
+            
+        } else {
+            // 远程 URL
+            guard let url = URL(string: urlPath) else {
+                print("❌ 无效远程 URL：\(urlPath)")
+                return nil
+            }
+            let request = URLRequest(url: url, cachePolicy: cachePolicy, timeoutInterval: timeout)
+            wkWebView.load(request)
+            return url
         }
     }
     
@@ -312,6 +346,7 @@ extension WKWebController: WKUIDelegate, WKNavigationDelegate {
     }
     
     public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        // 本地加载时会打印, 可以忽略 ?
         print("webView:didFailProvisionalNavigation: \(error.localizedDescription)")
     }
     

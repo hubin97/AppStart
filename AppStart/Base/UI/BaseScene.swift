@@ -6,12 +6,17 @@
 //  Copyright © 2025 Hubin_Huang. All rights reserved.
 
 import Foundation
+import SafariServices
 import AVKit
 
 // MARK: - global var and methods
 public enum BaseScene: SceneProvider {
  
+    // 使用Safari浏览器打开URL
     case safari(URL)
+    // 使用Safari视图控制器打开URL; .alert(type: .fullScreen)
+    case safariController(URL)
+
     // 仅支持 modal,alert 推出,使用其它方式, 可能会导致无法返回或者UI显示异常
     // ❌ 1.modal(x) + isWrap(false) 显示异常
     // ✅ 2.modal(x) + isWrap(true): 全屏, overFullScreen 不执行viewWillDisappear; fullScreen执行viewWillDisappear
@@ -29,6 +34,9 @@ public enum BaseScene: SceneProvider {
         case .safari(let url):
             UIApplication.shared.open(url, options: [:], completionHandler: nil)
             return nil
+        case .safariController(let url):
+            let vc = SFSafariViewController(url: url)
+            return vc
         case .videoPlayController(let url, let autoPlay, let isWrap):
             let vc = AVPlayerViewController()
             if let playUrl = URL(string: url) {
@@ -56,8 +64,10 @@ public enum BaseScene: SceneProvider {
             vc.loadWeb(urlPath: path)
             return vc
         case .tabs(let viewModel):
+            let normalColor = viewModel.tabBarItems.first?.textColor_n ?? .lightGray
+            let selectColor = viewModel.tabBarItems.first?.textColor_h ?? .black
             let tabBarVc = TabBarController(viewModel: viewModel)
-            tabBarVc.setAppearance(normalColor: UIColor.lightGray, selectColor: UIColor.black)
+            tabBarVc.setAppearance(normalColor: normalColor, selectColor: selectColor)
             return tabBarVc
         }
     }
