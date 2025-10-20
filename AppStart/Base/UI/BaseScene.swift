@@ -56,8 +56,10 @@ public enum BaseScene: SceneProvider {
             vc.loadWeb(urlPath: path)
             return vc
         case .tabs(let viewModel):
+            let normalColor = viewModel.tabBarItems.first?.textColor_n ?? .lightGray
+            let selectColor = viewModel.tabBarItems.first?.textColor_h ?? .black
             let tabBarVc = TabBarController(viewModel: viewModel)
-            tabBarVc.setAppearance(normalColor: UIColor.lightGray, selectColor: UIColor.black)
+            tabBarVc.setAppearance(normalColor: normalColor, selectColor: selectColor)
             return tabBarVc
         }
     }

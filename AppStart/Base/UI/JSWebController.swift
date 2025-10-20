@@ -11,14 +11,14 @@ import Foundation
 public class JSWebViewModel: ViewModel {
  
     var symbol: String?
-    convenience init(symbol: String?) {
+    public convenience init(symbol: String?) {
         self.init()
         self.symbol = symbol
     }
 }
 
 // MARK: - Main Class
-public class JSWebController: WKWebController, WebInteractable, ViewModelProvider {
+open class JSWebController: WKWebController, WebInteractable, ViewModelProvider {
     public typealias ViewModelType = JSWebViewModel
     
     public override func viewDidLoad() {

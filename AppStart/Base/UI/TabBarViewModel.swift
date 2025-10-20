@@ -8,11 +8,14 @@
 import Foundation
 import UIKit
 
-public protocol TabBarItemDataProvider where Self: CaseIterable {
+public protocol TabBarItemDataProvider: CaseIterable {
     // 根据枚举值返回对应的图标
     var image_n: UIImage? { get }
-    // 根据枚举值返回对应的图标
     var image_h: UIImage? { get }
+    // 根据枚举值返回对应的文案颜色
+    var textColor_n: UIColor? { get }
+    var textColor_h: UIColor? { get }
+
     // 根据枚举值返回对应的标题
     var title: String? { get }
     
@@ -24,6 +27,14 @@ public protocol TabBarItemDataProvider where Self: CaseIterable {
 
 extension TabBarItemDataProvider {
     
+    public var textColor_n: UIColor? {
+        nil
+    }
+    
+    public var textColor_h: UIColor? {
+        nil
+    }
+
     // 创建并返回对应的视图控制器，同时配置 TabBarItem
     public func getController(with viewModel: ViewModel, navigator: Navigator) -> UIViewController {
         let vc = controller(with: viewModel, navigator: navigator)
