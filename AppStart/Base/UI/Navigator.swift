@@ -32,7 +32,7 @@ extension Navigator {
         case navigation
         case modal(type: UIModalPresentationStyle)
         case detail
-        case alert
+        case alert(type: UIModalPresentationStyle)
         case custom
     }
     
@@ -91,8 +91,9 @@ extension Navigator {
                 let nav = NavigationController(rootViewController: target)
                 sender.showDetailViewController(nav, sender: nil)
             }
-        case .alert:
+        case .alert(let type):
             DispatchQueue.main.async {
+                sender.modalPresentationStyle = type
                 sender.present(target, animated: animated, completion: nil)
             }
         default: break
