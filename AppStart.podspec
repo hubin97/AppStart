@@ -81,6 +81,7 @@ Pod::Spec.new do |s|
 
       other.subspec 'UIKit' do |ui|
           ui.source_files = 'AppStart/Utils/UIKit/**/*.{swift}'
+          ui.dependency 'AppStart/Base/Core'
       end
   end
   

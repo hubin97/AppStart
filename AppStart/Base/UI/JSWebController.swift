@@ -33,9 +33,9 @@ open class JSWebController: WKWebController, WebInteractable, ViewModelProvider 
 extension JSWebController {
     
     // 示例
-    @objc func activityNavigator(_ params: [String: Any]) {
-        iToast.makeToast("activityNavigator: \(params.string ?? "")")
-    }
+//    @objc func activityNavigator(_ params: [String: Any]) {
+//        iToast.makeToast("activityNavigator: \(params.string ?? "")")
+//    }
 }
 
 // MARK: - Callbacks
