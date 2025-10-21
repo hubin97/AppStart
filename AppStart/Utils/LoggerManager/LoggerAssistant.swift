@@ -45,7 +45,7 @@ open class LoggerAssistant: UIView {
 extension LoggerAssistant {
  
     public func show() {
-        let opBtn = UIButton.init(type: .custom)
+        let opBtn = UIButton(type: .custom)
         opBtn.frame = self.bounds
         if let img = icon {
             opBtn.setImage(img, for: .normal)

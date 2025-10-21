@@ -122,25 +122,30 @@ public let kAppBuildVersion = kInfoPlist["CFBundleVersion"] as? String
 /// 获取当前最顶层显示的 UIViewController
 /// - Parameter vc: 可选的起始 UIViewController，默认从主窗口 rootViewController 开始
 /// - Returns: 当前屏幕上最顶层的 UIViewController（模态、Navigation、TabBar 都会展开）
-public func stackTopViewController(_ vc: UIViewController? = nil) -> UIViewController? {
-    // 从传入 VC 或主窗口 rootViewController 开始
-    var rootVc = vc ?? kAppKeyWindow?.rootViewController
-    guard let root = rootVc else { return nil }
+public func stackTopViewController(from vc: UIViewController? = nil) -> UIViewController? {
+    var current = vc ?? kAppKeyWindow?.rootViewController
 
-    // 1️⃣ 模态遍历，找到最顶层 presentedViewController
-    while let presented = rootVc?.presentedViewController {
-        rootVc = presented
+    while let viewController = current {
+        switch viewController {
+        // 如果有模态控制器，优先处理
+        case let presented where presented.presentedViewController != nil:
+            current = presented.presentedViewController
+
+        // UINavigationController，返回可见的控制器
+        case let nav as UINavigationController:
+            current = nav.visibleViewController
+
+        // UITabBarController，返回选中的控制器
+        case let tab as UITabBarController:
+            current = tab.selectedViewController
+
+        // 普通控制器，返回自己
+        default:
+            return viewController
+        }
     }
 
-    // 2️⃣ 递归展开 TabBar / Navigation 容器
-    if let tab = rootVc as? UITabBarController, let selected = tab.selectedViewController {
-        return stackTopViewController(selected)
-    } else if let nav = rootVc as? UINavigationController, let visible = nav.visibleViewController {
-        return stackTopViewController(visible)
-    }
-
-    // 3️⃣ 普通控制器，返回自己
-    return rootVc
+    return nil
 }
 
 /// 根据字符串获取工程中的对应Swift类

@@ -50,7 +50,7 @@ Pod::Spec.new do |s|
   
   # 子模块：Utils
   s.subspec 'Utils' do |other|
-      ['Toast-Swift', 'Kingfisher', 'CocoaLumberjack'].each do |dd|
+      ['Toast-Swift', 'Kingfisher', 'CocoaLumberjack', 'RxSwift', 'RxGesture'].each do |dd|
           other.dependency dd
       end
       
@@ -72,6 +72,15 @@ Pod::Spec.new do |s|
           log.dependency 'CocoaLumberjack'
           log.dependency 'AppStart/Base'
           log.dependency 'AppStart/Utils/Helpers'
+      end
+      
+      other.subspec 'Rx' do |rx|
+          rx.source_files = 'AppStart/Utils/Rx/**/*.{swift}'
+          rx.dependency 'RxGesture'
+      end
+
+      other.subspec 'UIKit' do |ui|
+          ui.source_files = 'AppStart/Utils/UIKit/**/*.{swift}'
       end
   end
   

@@ -118,7 +118,9 @@ open class LoggerManager {
     private var cacheIcon: UIImage?
     /// 初始化日志入口
     public func entrance(_ icon: UIImage? = nil) {
-        let aIcon = cacheIcon ?? icon ?? UIImage.bundleImage(named: "logger")
+        self.removeEntrance()
+        
+        let aIcon = cacheIcon ?? icon ?? UIImage.bundleImage(named: "icon_logger")
         self.cacheIcon = aIcon
 
         LoggerAssistant(icon: aIcon) {
