@@ -27,7 +27,7 @@ class LoggerListController: ViewController {
     
     open override func viewDidLoad() {
         super.viewDidLoad()
-        self.naviBar.title = "日志列表"
+        self.naviBar.title = L10n.stringLogList
         self.view.addSubview(listView)
         LoggerManager.shared.removeEntrance()
         // DDLogInfo("LoggerManager LogFiles Count:\(logFiles.count)")
@@ -60,7 +60,7 @@ extension LoggerListController: UITableViewDataSource, UITableViewDelegate {
         let cell = tableView.dequeueReusableCell(withIdentifier: NSStringFromClass(UITableViewCell.self), for: indexPath)
         var logdate = (file.creationDate ?? Date()).format()
         if indexPath.row == 0 {
-            logdate = "最新" + logdate
+            logdate = L10n.stringLatest + ": " + logdate
         }
         cell.textLabel?.text = logdate
         return cell
@@ -85,25 +85,25 @@ class LoggerDetailController: ViewController {
     }()
     
     lazy var shareButton: UIButton = {
-        let _shareButton = UIButton(type: .custom)
-        _shareButton.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
-        _shareButton.setTitle("分享", for: .normal)
-        _shareButton.setTitleColor(.black, for: .normal)
-        _shareButton.addTarget(self, action: #selector(shareFile), for: .touchUpInside)
-        return _shareButton
+        let button = UIButton(type: .custom)
+        button.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
+        button.setImage(UIImage(systemName: "square.and.arrow.up"), for: .normal)
+        button.tintColor = .black
+        button.addTarget(self, action: #selector(shareFile), for: .touchUpInside)
+        return button
     }()
     
     lazy var fileButton: UIButton = {
-        let _fileButton = UIButton(type: .custom)
-        _fileButton.frame = CGRect(x: 44 + 12, y: 0, width: 44, height: 44)
-        _fileButton.setTitle("导出", for: .normal)
-        _fileButton.setTitleColor(.black, for: .normal)
-        _fileButton.addTarget(self, action: #selector(saveToFile), for: .touchUpInside)
-        return _fileButton
+        let button = UIButton(type: .custom)
+        button.frame = CGRect(x: 44 + 4, y: 0, width: 44, height: 44)
+        button.setImage(UIImage(systemName: "tray.and.arrow.down"), for: .normal)
+        button.tintColor = .black
+        button.addTarget(self, action: #selector(saveToFile), for: .touchUpInside)
+        return button
     }()
     
     lazy var titleView: UIView = {
-        let _titleView = UIView(frame: CGRect(x: 0, y: 0, width: 88 + 12, height: 44))
+        let _titleView = UIView(frame: CGRect(x: 0, y: 0, width: 88 + 4, height: 44))
         _titleView.addSubview(shareButton)
         _titleView.addSubview(fileButton)
         return _titleView
@@ -111,7 +111,7 @@ class LoggerDetailController: ViewController {
 
     open override func viewDidLoad() {
         super.viewDidLoad()
-        self.naviBar.title = "日志详情"
+        self.naviBar.title = L10n.stringLogDetails
         self.naviBar.setRightView(titleView)
         self.view.addSubview(logTextView)
         if let fpath = file?.filePath, let fdata = try? Data.init(contentsOf: URL.init(fileURLWithPath: fpath)) {

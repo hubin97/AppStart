@@ -223,11 +223,11 @@ class AssetsClass { }
 extension Extension_Image {
     
     /// 获取bundle资源
-    public static func bundleImage(named: String) -> UIImage? {
-        let bundlePath = "\(Bundle(for: AssetsClass.self).bundlePath)" + "/Resources.bundle"
-        let bundle = Bundle(path: bundlePath)
-        return UIImage(named: named, in: bundle, compatibleWith: nil)
-    }
+//    public static func bundleImage(named: String) -> UIImage? {
+//        let bundlePath = "\(Bundle(for: AssetsClass.self).bundlePath)" + "/Resources.bundle"
+//        let bundle = Bundle(path: bundlePath)
+//        return UIImage(named: named, in: bundle, compatibleWith: nil)
+//    }
     
 //    //对Extension_Data -> ImageType 补充
 //    // 参考YYKit->YYImage/NSBundle+YYAdd.h

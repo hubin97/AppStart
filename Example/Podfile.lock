@@ -4,6 +4,8 @@ PODS:
     - AppStart/Base (= 0.1.1)
     - AppStart/BLE (= 0.1.1)
     - AppStart/Network (= 0.1.1)
+    - AppStart/Sources (= 0.1.1)
+    - AppStart/SwiftGen (= 0.1.1)
     - AppStart/Utils (= 0.1.1)
   - AppStart/Base (0.1.1):
     - AppStart/Base/Core (= 0.1.1)
@@ -21,6 +23,7 @@ PODS:
     - Toast-Swift
   - AppStart/Base/UI (0.1.1):
     - AppStart/Base/Core
+    - AppStart/Sources
     - Kingfisher
     - ProgressHUD
     - PromiseKit
@@ -54,6 +57,8 @@ PODS:
     - PromiseKit
     - RxRelay
     - RxSwift
+  - AppStart/Sources (0.1.1)
+  - AppStart/SwiftGen (0.1.1)
   - AppStart/Utils (0.1.1):
     - AppStart/Utils/AuthStatus (= 0.1.1)
     - AppStart/Utils/Helpers (= 0.1.1)
@@ -62,37 +67,55 @@ PODS:
     - AppStart/Utils/UIKit (= 0.1.1)
     - CocoaLumberjack
     - Kingfisher
+    - RxGesture
+    - RxRelay
+    - RxSwift
     - Toast-Swift
   - AppStart/Utils/AuthStatus (0.1.1):
     - AppStart/Base/Core
     - CocoaLumberjack
     - Kingfisher
+    - RxGesture
+    - RxRelay
+    - RxSwift
     - Toast-Swift
   - AppStart/Utils/Helpers (0.1.1):
     - AppStart/Base/Core
     - CocoaLumberjack
     - Kingfisher
+    - RxGesture
+    - RxRelay
+    - RxSwift
     - Toast-Swift
   - AppStart/Utils/LoggerManager (0.1.1):
     - AppStart/Base
+    - AppStart/Sources
     - AppStart/Utils/Helpers
     - CocoaLumberjack
     - Kingfisher
+    - RxGesture
+    - RxRelay
     - RxSwift
     - Toast-Swift
   - AppStart/Utils/Rx (0.1.1):
     - CocoaLumberjack
     - Kingfisher
     - RxGesture
+    - RxRelay
+    - RxSwift
     - Toast-Swift
   - AppStart/Utils/UIKit (0.1.1):
+    - AppStart/Base/Core
     - CocoaLumberjack
     - Kingfisher
+    - RxGesture
+    - RxRelay
+    - RxSwift
     - Toast-Swift
-  - CocoaLumberjack (3.8.5):
-    - CocoaLumberjack/Core (= 3.8.5)
-  - CocoaLumberjack/Core (3.8.5)
-  - Kingfisher (8.3.2)
+  - CocoaLumberjack (3.9.0):
+    - CocoaLumberjack/Core (= 3.9.0)
+  - CocoaLumberjack/Core (3.9.0)
+  - Kingfisher (8.6.0)
   - Moya (15.0.0):
     - Moya/Core (= 15.0.0)
   - Moya/Core (15.0.0):
@@ -148,9 +171,9 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   Alamofire: 7193b3b92c74a07f85569e1a6c4f4237291e7496
-  AppStart: fa6306c93515f89a2ecdff7947a45dfbc776645a
-  CocoaLumberjack: 6a459bc897d6d80bd1b8c78482ec7ad05dffc3f0
-  Kingfisher: 0621d0ac0c78fecb19f6dc5303bde2b52abaf2f5
+  AppStart: 1bd085f943c33e8fce96f42cb92a356396467e3f
+  CocoaLumberjack: 5644158777912b7de7469fa881f8a3f259c2512a
+  Kingfisher: 64278f126a815d0e2d391cdf71311b85882c4de0
   Moya: 138f0573e53411fb3dc17016add0b748dfbd78ee
   "NSObject+Rx": 61cf1f7306a73dcef8b36649198af0813ec18dfd
   ObjectMapper: e6e4d91ff7f2861df7aecc536c92d8363f4c9677

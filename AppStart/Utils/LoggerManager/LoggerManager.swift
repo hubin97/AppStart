@@ -120,7 +120,7 @@ open class LoggerManager {
     public func entrance(_ icon: UIImage? = nil) {
         self.removeEntrance()
         
-        let aIcon = cacheIcon ?? icon ?? UIImage.bundleImage(named: "icon_logger")
+        let aIcon = cacheIcon ?? icon ?? Asset.iconLogger.image
         self.cacheIcon = aIcon
 
         LoggerAssistant(icon: aIcon) {

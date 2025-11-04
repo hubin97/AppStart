@@ -1,0 +1,26 @@
+## For more info, use `swiftgen config doc` to open the full documentation on GitHub.
+## https://github.com/SwiftGen/SwiftGen/tree/6.6.3/Documentation/
+##
+## 常用指令
+## brew install swiftgen
+## cd AppStart/SwiftGen
+## swiftgen config run --config swiftgen.yml
+
+# ---
+xcassets:
+  inputs:
+    - ../Resources/Assets.xcassets
+  outputs:
+    - templateName: swift5
+      output: ../Sources/Generated/Assets.swift
+      bundle: BundleToken.bundle
+        
+strings:
+  inputs:
+    - ../Resources/en.lproj/Localizable.strings
+  outputs:
+    - templateName: structured-swift5
+      output: ../Sources/Generated/Strings.swift
+      bundle: BundleToken.bundle
+
+# ---

@@ -35,7 +35,7 @@ public class NaviBar: UIView {
 
     public lazy var backButton: UIButton = {
         let _backButton = UIButton(type: .custom)
-        _backButton.setImage(UIImage.bundleImage(named: "icon_left_black")?.adaptRTL, for: .normal)
+        _backButton.setImage(Asset.iconLeftBlack.image.adaptRTL, for: .normal)
         _backButton.addTarget(self, action: #selector(backAction(_:)), for: .touchUpInside)
         return _backButton
     }()

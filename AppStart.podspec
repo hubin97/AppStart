@@ -27,6 +27,16 @@ Pod::Spec.new do |s|
   s.swift_versions = ['5.0']
   
   # ――― Source Code ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― #
+  
+  # --- SwiftGen began ---
+  s.subspec 'SwiftGen' do |ss|
+      ss.source_files = 'AppStart/SwiftGen/*'
+  end
+  s.subspec 'Sources' do |ss|
+      ss.source_files = 'AppStart/Sources/Generated/*'
+  end
+  # --- SwiftGen end ---
+  
   # 子模块：Base
   s.subspec 'Base' do |base|
       # 使用 Ruby 数组简化多个依赖的定义
@@ -44,13 +54,14 @@ Pod::Spec.new do |s|
       base.subspec 'UI' do |ss|
           ss.source_files = 'AppStart/Base/UI/*.swift'
           ss.dependency 'AppStart/Base/Core'
+          ss.dependency 'AppStart/Sources'
       end
       
   end
   
   # 子模块：Utils
   s.subspec 'Utils' do |other|
-      ['Toast-Swift', 'Kingfisher', 'CocoaLumberjack', 'RxSwift', 'RxGesture'].each do |dd|
+      ['Toast-Swift', 'Kingfisher', 'CocoaLumberjack', 'RxSwift', 'RxRelay', 'RxGesture'].each do |dd|
           other.dependency dd
       end
       
@@ -72,6 +83,7 @@ Pod::Spec.new do |s|
           log.dependency 'CocoaLumberjack'
           log.dependency 'AppStart/Base'
           log.dependency 'AppStart/Utils/Helpers'
+          log.dependency 'AppStart/Sources'
       end
       
       other.subspec 'Rx' do |rx|
@@ -83,6 +95,11 @@ Pod::Spec.new do |s|
           ui.source_files = 'AppStart/Utils/UIKit/**/*.{swift}'
           ui.dependency 'AppStart/Base/Core'
       end
+      
+#      other.subspec 'Protocols' do |pr|
+#          pr.source_files = 'AppStart/Utils/Protocols/**/*.{swift}'
+#          pr.dependency 'RxRelay'
+#      end
   end
   
   # 子模块：Network
@@ -110,10 +127,26 @@ Pod::Spec.new do |s|
       
       ble.source_files = 'AppStart/BLE/**/*.swift'
   end
-  
+
   # ――― Resources ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― #
-  s.resource     = 'AppStart/Resources.bundle'
+  #s.resource     = 'AppStart/Resources.bundle'
+  #s.resource     = 'AppStart/Resources'
+#  s.resource_bundles = {
+#    'AppStart' => ['AppStart/Resources/**/*']
+#  }
+#  s.preserve_paths   = 'AppStart/Resources'
+  # 注意只有下面方式支持swiftgen生成文件资源且不出现引用问题
+  s.resources = ['AppStart/Resources/**/*']
 
   # ――― Project Settings ――――――――――――――――――――――――――――――――――――――――――――――――――――――――― #
   s.requires_arc = true
+  
+#  s.prepare_command = <<-CMD
+#    #cd "#{__dir__}"  # 切换到 podspec 所在目录
+#    if which swiftgen >/dev/null; then
+#      swiftgen config run --config AppStart/SwiftGen/swiftgen.yml
+#    else
+#      echo "⚠️ SwiftGen not installed, skipping codegen"
+#    fi
+#  CMD
 end

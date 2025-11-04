@@ -15,7 +15,7 @@ open class TableViewCell: UITableViewCell {
     
     // 右箭头 ">"
     public lazy var arrowView: UIImageView = {
-        let _nextImgView = UIImageView(image: UIImage.bundleImage(named: "icon_arrow")?.adaptRTL)
+        let _nextImgView = UIImageView(image: Asset.iconRightBlack.image.adaptRTL)
         _nextImgView.frame = CGRect(x: 0, y: 0, width: 15, height: 15)
         _nextImgView.contentMode = .scaleAspectFit
         return _nextImgView

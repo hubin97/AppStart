@@ -115,7 +115,7 @@ open class WKWebController: ViewController, WKWebScriptMsgHandleAble {
     lazy var backButton: UIButton = {
         let _backButton = UIButton(type: .custom)
         _backButton.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
-        _backButton.setImage(UIImage.bundleImage(named: "icon_left_black")?.adaptRTL, for: .normal)
+        _backButton.setImage(Asset.iconLeftBlack.image.adaptRTL, for: .normal)
         _backButton.addTarget(self, action: #selector(backAction(_:)), for: .touchUpInside)
         return _backButton
     }()
@@ -123,12 +123,12 @@ open class WKWebController: ViewController, WKWebScriptMsgHandleAble {
     lazy var naviLeftView: UIView = {
         let _backButton = UIButton(type: .custom)
         _backButton.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
-        _backButton.setImage(UIImage.bundleImage(named: "icon_left_black")?.adaptRTL, for: .normal)
+        _backButton.setImage(Asset.iconLeftBlack.image.adaptRTL, for: .normal)
         _backButton.addTarget(self, action: #selector(backAction(_:)), for: .touchUpInside)
 
         let _closeButton = UIButton(type: .custom)
         _closeButton.frame = CGRect(x: view.isRTL ? 0: 44, y: 0, width: 44, height: 44)
-        _closeButton.setImage(UIImage.bundleImage(named: "icon_close_black")?.adaptRTL, for: .normal)
+        _closeButton.setImage(Asset.iconCloseBlack.image.adaptRTL, for: .normal)
         _closeButton.addTarget(self, action: #selector(closeAction(_:)), for: .touchUpInside)
 
         let _naviLeftView = UIView(frame: CGRect(x: 10, y: 0, width: 88, height: 44))
