@@ -28,6 +28,15 @@ public class NaviBar: UIView {
         }
     }
     
+    /// 是否启用高斯模糊背景
+    public var isBlurEnabled: Bool {
+        get { !blurView.isHidden }
+        set {
+            blurView.isHidden = !newValue
+            backgroundColor = newValue ? .clear: .white
+        }
+    }
+
     weak var delegate: NaviBarDelegate?
         
     public var leftView: UIView?
@@ -45,9 +54,17 @@ public class NaviBar: UIView {
         return _titleView
     }()
     
+    lazy var blurView: BlurOverlayView = {
+        let view = BlurOverlayView()
+        view.frame = CGRect(x: 0, y: 0, width: kScreenW, height: kNavBarAndSafeHeight)
+        view.isHidden = true // 默认不开启
+        return view
+    }()
+
     override init(frame: CGRect) {
         super.init(frame: CGRect(x: 0, y: 0, width: kScreenW, height: kNavBarAndSafeHeight))
         self.backgroundColor = .white
+        self.addSubview(blurView)
         self.addSubview(backButton)
         self.addSubview(titleView)
         self.leftView = backButton
@@ -60,7 +77,7 @@ public class NaviBar: UIView {
     
     private func setupConstraints() {
         backButton.snp.makeConstraints { make in
-            make.leading.equalToSuperview().offset(10)
+            make.leading.equalToSuperview()
             make.top.equalToSuperview().offset(kStatusBarHeight)
             make.width.height.equalTo(kNavBarHeight)
         }
