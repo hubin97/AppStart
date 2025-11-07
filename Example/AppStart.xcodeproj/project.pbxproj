@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		09E0DD572F6C383B5B21AFB9 /* Pods_AppStart_Tests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E696DAA9AEB63276A8FA4C75 /* Pods_AppStart_Tests.framework */; };
+		18F407352EBCAB0B00341B71 /* swiftgen_pod_setup.sh in Resources */ = {isa = PBXBuildFile; fileRef = 18F407342EBCAB0B00341B71 /* swiftgen_pod_setup.sh */; };
 		607FACD61AFB9204008FA782 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607FACD51AFB9204008FA782 /* AppDelegate.swift */; };
 		607FACD81AFB9204008FA782 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607FACD71AFB9204008FA782 /* ViewController.swift */; };
 		607FACDB1AFB9204008FA782 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 607FACD91AFB9204008FA782 /* Main.storyboard */; };
@@ -29,6 +30,7 @@
 
 /* Begin PBXFileReference section */
 		139DD26CB21891EE30DF0C5C /* Pods-AppStart_Example.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-AppStart_Example.debug.xcconfig"; path = "Target Support Files/Pods-AppStart_Example/Pods-AppStart_Example.debug.xcconfig"; sourceTree = "<group>"; };
+		18F407342EBCAB0B00341B71 /* swiftgen_pod_setup.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; name = swiftgen_pod_setup.sh; path = ../swiftgen_pod_setup.sh; sourceTree = SOURCE_ROOT; };
 		1F08F246390A576F4BC02810 /* Pods-AppStart_Example.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-AppStart_Example.release.xcconfig"; path = "Target Support Files/Pods-AppStart_Example/Pods-AppStart_Example.release.xcconfig"; sourceTree = "<group>"; };
 		607FACD01AFB9204008FA782 /* AppStart_Example.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AppStart_Example.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		607FACD41AFB9204008FA782 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -108,6 +110,7 @@
 				607FACD71AFB9204008FA782 /* ViewController.swift */,
 				607FACD91AFB9204008FA782 /* Main.storyboard */,
 				607FACDC1AFB9204008FA782 /* Images.xcassets */,
+				18F407342EBCAB0B00341B71 /* swiftgen_pod_setup.sh */,
 				607FACDE1AFB9204008FA782 /* LaunchScreen.xib */,
 				607FACD31AFB9204008FA782 /* Supporting Files */,
 			);
@@ -251,6 +254,7 @@
 				607FACDB1AFB9204008FA782 /* Main.storyboard in Resources */,
 				607FACE01AFB9204008FA782 /* LaunchScreen.xib in Resources */,
 				607FACDD1AFB9204008FA782 /* Images.xcassets in Resources */,
+				18F407352EBCAB0B00341B71 /* swiftgen_pod_setup.sh in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

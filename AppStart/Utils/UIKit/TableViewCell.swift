@@ -13,10 +13,19 @@ open class TableViewCellViewModel: NSObject {}
 /// 自定义next Cell
 open class TableViewCell: UITableViewCell {
     
+    // 默认箭头边距
+    public var arrowMargin: CGFloat = 5 {
+        didSet { setNeedsLayout() }
+    }
+    // 默认箭头大小
+    public var arrowWidth: CGFloat = 35 {
+        didSet { setNeedsLayout() }
+    }
+    
     // 右箭头 ">"
     public lazy var arrowView: UIImageView = {
         let _nextImgView = UIImageView(image: Asset.iconRightBlack.image.adaptRTL)
-        _nextImgView.frame = CGRect(x: 0, y: 0, width: 15, height: 15)
+        _nextImgView.frame = CGRect(x: 0, y: 0, width: arrowWidth, height: arrowWidth)
         _nextImgView.contentMode = .scaleAspectFit
         return _nextImgView
     }()
@@ -25,9 +34,9 @@ open class TableViewCell: UITableViewCell {
     open override func layoutSubviews() {
         super.layoutSubviews()
         if let accessoryView = self.accessoryView {
-            var tFrame = accessoryView.frame
-            tFrame.origin.x = isRTL ? 15: frame.size.width - 30
-            accessoryView.frame = tFrame
+            let accessoryViewX = isRTL ? arrowMargin: bounds.width - arrowWidth - arrowMargin
+            let accessoryViewY = (bounds.height - arrowWidth) / 2
+            accessoryView.frame = CGRect(x: accessoryViewX, y: accessoryViewY, width: arrowWidth, height: arrowWidth)
         }
     }
     
