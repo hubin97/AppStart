@@ -16,6 +16,10 @@ internal enum L10n {
   internal static let stringLogDetails = L10n.tr("Localizable", "string_log_details", fallback: "Log Details")
   /// Log List
   internal static let stringLogList = L10n.tr("Localizable", "string_log_list", fallback: "Log List")
+  /// Failed to map data to %@
+  internal static func stringObjMapFail(_ p1: Any) -> String {
+    return L10n.tr("Localizable", "string_obj_map_fail", String(describing: p1), fallback: "Failed to map data to %@")
+  }
 }
 // swiftlint:enable explicit_type_interface function_parameter_count identifier_name line_length
 // swiftlint:enable nesting type_body_length type_name vertical_whitespace_opening_braces

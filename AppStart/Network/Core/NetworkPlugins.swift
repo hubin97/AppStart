@@ -9,6 +9,17 @@ import Moya
 import ObjectMapper
 import ProgressHUD
 
+// MARK: - Helper
+
+/// 在主线程执行闭包，如果已在主线程则同步执行，否则异步切换到主线程
+public func dispatchOnMain(_ block: @escaping () -> Void) {
+    if Thread.isMainThread {
+        block()
+    } else {
+        DispatchQueue.main.async(execute: block)
+    }
+}
+
 // MARK: - 加载配置
 /**
  其他加载情况可以使用Moya自带的插件处理, NetworkActivityPlugin
@@ -60,15 +71,16 @@ public class NetworkLoadingPlugin: PluginType {
     }
 
     public func didReceive(_ result: Result<Response, MoyaError>, target: TargetType) {
-        DispatchQueue.main.async {
-            //FIXME: 不能立即移除提示, 以实际业务为准
-            // SVProgressHUD.dismiss()
-            guard #available(iOS 13.0, *) else {
-                DispatchQueue.main.async {
-                    UIApplication.shared.isNetworkActivityIndicatorVisible = false
-                }
-                return
+        // 立即 dismiss loading，确保在 Promise 的 done/catch 回调之前执行
+        dispatchOnMain {
+            ProgressHUD.dismiss()
+        }
+        
+        guard #available(iOS 13.0, *) else {
+            dispatchOnMain {
+                UIApplication.shared.isNetworkActivityIndicatorVisible = false
             }
+            return
         }
     }
 }
@@ -91,19 +103,29 @@ public class NetworkTimeoutPlugin: PluginType {
 // MARK: - 全局配置处理
 public class NetworkHandlePlugin: PluginType {
 
-    let dismiss: Bool
-    var successHandler: (_ response: Response) -> Void
-    public init(dismiss: Bool = true, successHandler: @escaping ((_ response: Response) -> Void)) {
-        self.dismiss = dismiss
-        self.successHandler = successHandler
+    private weak var provider: NetworkHandleProvider?
+    
+    /// 直接持有 provider，简化调用链
+    public init(provider: NetworkHandleProvider) {
+        self.provider = provider
     }
 
     public func didReceive(_ result: Result<Response, MoyaError>, target: TargetType) {
-        switch result {
-        case let .success(response):
-            self.successHandler(response)
-        case let .failure(error):
-            NetworkError.showError(error)
+        guard let provider = provider else { return }
+        
+        // 确保在主线程执行，并使用 RunLoop 延迟到下一个 runloop
+        // 这样执行顺序：loading dismiss -> Promise done -> successHandle
+        dispatchOnMain { [weak provider] in
+            guard let provider = provider else { return }
+            
+            RunLoop.current.perform(inModes: [.common]) {
+                switch result {
+                case let .success(response):
+                    provider.successHandle(response: response)
+                case let .failure(error):
+                    provider.failureHandle(errorMessage: error.localizedErrorMessage)
+                }
+            }
         }
     }
 }

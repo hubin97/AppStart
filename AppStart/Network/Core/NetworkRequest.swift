@@ -11,50 +11,6 @@
 import Moya
 import ObjectMapper
 import PromiseKit
-import Alamofire
-import ProgressHUD
-
-/// 自定义网络错误
-public enum NetworkError: Error {
-    /// 解析映射出错
-    case objectMapperError(mapType: Any)
-    /// 自定义文案
-    case exception(msg: String)
-}
-
-extension NetworkError: LocalizedError {
-    // 自定义错误提示
-    public var errorDescription: String? {
-        switch self {
-        case .objectMapperError(let mapType):
-            return "Failed to map data to \(type(of: mapType))."
-        case .exception(msg: let msg):
-            return msg
-        }
-    }
-    
-    /// 简化Moya错误提示, `去掉 AFError 的"URLSessionTask failed with error:"前缀提示`
-    public static func showError(_ error: Error) {
-        guard let moyaError = error as? MoyaError else {
-            ProgressHUD.error(error.localizedDescription)
-            //SVProgressHUD.showError(withStatus: error.localizedDescription)
-            return
-        }
-        switch moyaError {
-        case .underlying(let err as AFError, _):
-            if err.isSessionTaskError {
-                //SVProgressHUD.showError(withStatus: err.underlyingError?.localizedDescription ?? "")
-                ProgressHUD.error(err.underlyingError?.localizedDescription)
-            } else {
-                //SVProgressHUD.showError(withStatus: error.localizedDescription)
-                ProgressHUD.error(error.localizedDescription)
-            }
-        default:
-            //SVProgressHUD.showError(withStatus: error.localizedDescription)
-            ProgressHUD.error(error.localizedDescription)
-        }
-    }
-}
 
 /// 如果返回的数据并不能直接映射, 使用插件预处理
 /// func process(_ result: Result<Moya.Response, MoyaError>, target: TargetType) -> Result<Moya.Response, MoyaError>

@@ -7,14 +7,18 @@
 
 import Foundation
 import Moya
-import ObjectMapper
 
 /**
  外部实现
  1. 
  /// 全局网络处理
+ /// 注意：successHandle 在 Promise 的 done 回调之后执行（使用 RunLoop 确保）
+ /// loading 的 dismiss 在 done 之前执行，不会影响业务层在 done 中显示的提示
  class NetworkResponseHandler: NetworkHandleProvider {
-    func successHandle(dismiss: Bool, response: Response) {}
+    func successHandle(response: Response) {
+        // 业务层处理逻辑，如错误码判断等
+        // loading 已由 NetworkLoadingPlugin 在 done 之前自动 dismiss
+    }
  }
  
  2.
@@ -33,17 +37,24 @@ import ObjectMapper
  */
 
 public protocol NetworkHandleProvider: AnyObject {
-    /// 错误码
-    // enum ErrorCode
-    
     /// 响应成功处理
-    func successHandle(dismiss: Bool, response: Response)
+    /// 注意：此方法在 Promise 的 done 回调之后执行（使用 RunLoop 确保），确保业务层提示先显示
+    /// loading 的 dismiss 由 NetworkLoadingPlugin 统一处理，无需在此处处理
+    func successHandle(response: Response)
+    
+    /// 响应失败处理（可选，提供默认空实现）
+    func failureHandle(errorMessage: String)
+}
+
+public extension NetworkHandleProvider {
+    /// 默认失败处理为空实现，业务层可按需重写
+    func failureHandle(errorMessage: String) {}
 }
 
 public enum PTEnum {
     case loading(content: String?, isEnable: Bool)
     case timeout(time: TimeInterval)
-    case handle(provider: any NetworkHandleProvider, dismiss: Bool)
+    case handle(provider: any NetworkHandleProvider)
     case println
 
     var plugin: PluginType {
@@ -52,8 +63,8 @@ public enum PTEnum {
             return PTEnum.loading(content: content, isEnable: isEnable)
         case .timeout(let time):
             return PTEnum.timeout(time)
-        case .handle(let provider, let dismiss):
-            return PTEnum.handle(provider: provider, dismiss: dismiss)
+        case .handle(let provider):
+            return PTEnum.handle(provider: provider)
         case .println:
             return PTEnum.println()
         }
@@ -71,10 +82,8 @@ public enum PTEnum {
         return NetworkTimeoutPlugin(time)
     }
     
-    public static func handle(provider: any NetworkHandleProvider, dismiss: Bool = true) -> PluginType {
-        return NetworkHandlePlugin(dismiss: dismiss) { response in
-            provider.successHandle(dismiss: dismiss, response: response)
-        }
+    public static func handle(provider: any NetworkHandleProvider) -> PluginType {
+        return NetworkHandlePlugin(provider: provider)
     }
 //    public static func handle(dismiss: Bool = true) -> PluginType {
 //        return NetworkHandlePlugin(dismiss: dismiss) { response in
