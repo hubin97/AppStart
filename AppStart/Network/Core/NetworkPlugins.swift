@@ -7,7 +7,6 @@
 
 import Moya
 import ObjectMapper
-import ProgressHUD
 
 // MARK: - Helper
 
@@ -103,30 +102,47 @@ public class NetworkTimeoutPlugin: PluginType {
 // MARK: - 全局配置处理
 public class NetworkHandlePlugin: PluginType {
 
-    private weak var provider: NetworkHandleProvider?
+    private let provider: NetworkHandleProvider
     
     /// 直接持有 provider，简化调用链
     public init(provider: NetworkHandleProvider) {
         self.provider = provider
     }
 
-    public func didReceive(_ result: Result<Response, MoyaError>, target: TargetType) {
-        guard let provider = provider else { return }
-        
-        // 确保在主线程执行，并使用 RunLoop 延迟到下一个 runloop
-        // 这样执行顺序：loading dismiss -> Promise done -> successHandle
+    public func didReceive(_ result: Result<Response, MoyaError>, target: TargetType) {        
+        // 顺序：loading dismiss -> successHandle -> Promise done/catch
         dispatchOnMain { [weak provider] in
             guard let provider = provider else { return }
-            
-            RunLoop.current.perform(inModes: [.common]) {
-                switch result {
-                case let .success(response):
-                    provider.successHandle(response: response)
-                case let .failure(error):
-                    provider.failureHandle(errorMessage: error.localizedErrorMessage)
-                }
+            switch result {
+            case let .success(response):
+                provider.successHandle(response: response)
+            case let .failure(error):
+                provider.failureHandle(errorMessage: error.localizedErrorMessage)
             }
         }
+    }
+}
+
+// MARK: - 缓存策略处理
+
+/// 控制http接口缓存策略
+/// `注意: 个人信息、订单等重要性, 及时性接口, 最好忽略缓存`
+///
+/// `useCache: true` 默认缓存策略`.useProtocolCachePolicy`
+/// `useCache: false` 设置 `.reloadIgnoringLocalCacheData`，即`强制忽略本地缓存，重新从网络加载`
+public final class NetworkCachePlugin: PluginType {
+    
+    let useCache: Bool
+    public init(shouldUseCache: Bool = true) {
+        self.useCache = shouldUseCache
+    }
+    public func prepare(_ request: URLRequest, target: TargetType) -> URLRequest {
+        var req = request
+        // FIXME: 除了自己设置忽略忽略的; 用户态接口也统一禁用缓存策略
+        if !useCache || target.path.hasPrefix("/user/") {
+            req.cachePolicy = .reloadIgnoringLocalCacheData
+        }
+        return req
     }
 }
 

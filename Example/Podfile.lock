@@ -4,6 +4,7 @@ PODS:
     - AppStart/Base (= 0.1.1)
     - AppStart/BLE (= 0.1.1)
     - AppStart/Network (= 0.1.1)
+    - AppStart/ProgressHUD (= 0.1.1)
     - AppStart/Sources (= 0.1.1)
     - AppStart/SwiftGen (= 0.1.1)
     - AppStart/Utils (= 0.1.1)
@@ -11,13 +12,12 @@ PODS:
     - AppStart/Base/Core (= 0.1.1)
     - AppStart/Base/UI (= 0.1.1)
     - Kingfisher
-    - ProgressHUD
     - PromiseKit
     - SnapKit
     - Toast-Swift
   - AppStart/Base/Core (0.1.1):
+    - AppStart/ProgressHUD
     - Kingfisher
-    - ProgressHUD
     - PromiseKit
     - SnapKit
     - Toast-Swift
@@ -25,7 +25,6 @@ PODS:
     - AppStart/Base/Core
     - AppStart/Sources
     - Kingfisher
-    - ProgressHUD
     - PromiseKit
     - SnapKit
     - Toast-Swift
@@ -38,7 +37,6 @@ PODS:
     - AppStart/Network/Utils (= 0.1.1)
     - Moya
     - ObjectMapper
-    - ProgressHUD
     - PromiseKit
     - RxRelay
     - RxSwift
@@ -46,17 +44,16 @@ PODS:
     - AppStart/Utils
     - Moya
     - ObjectMapper
-    - ProgressHUD
     - PromiseKit
     - RxRelay
     - RxSwift
   - AppStart/Network/Utils (0.1.1):
     - Moya
     - ObjectMapper
-    - ProgressHUD
     - PromiseKit
     - RxRelay
     - RxSwift
+  - AppStart/ProgressHUD (0.1.1)
   - AppStart/Sources (0.1.1)
   - AppStart/SwiftGen (0.1.1)
   - AppStart/Utils (0.1.1):
@@ -123,7 +120,6 @@ PODS:
   - "NSObject+Rx (5.2.2)":
     - RxSwift (~> 6.2)
   - ObjectMapper (4.4.2)
-  - ProgressHUD (14.1.1)
   - PromiseKit (8.2.0):
     - PromiseKit/CorePromise (= 8.2.0)
     - PromiseKit/Foundation (= 8.2.0)
@@ -156,7 +152,6 @@ SPEC REPOS:
     - Moya
     - "NSObject+Rx"
     - ObjectMapper
-    - ProgressHUD
     - PromiseKit
     - RxCocoa
     - RxGesture
@@ -171,13 +166,12 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   Alamofire: 7193b3b92c74a07f85569e1a6c4f4237291e7496
-  AppStart: 1bd085f943c33e8fce96f42cb92a356396467e3f
+  AppStart: 17b88f2d4b06c2673c944f9eaae0961e964ca5c6
   CocoaLumberjack: 5644158777912b7de7469fa881f8a3f259c2512a
   Kingfisher: 64278f126a815d0e2d391cdf71311b85882c4de0
   Moya: 138f0573e53411fb3dc17016add0b748dfbd78ee
   "NSObject+Rx": 61cf1f7306a73dcef8b36649198af0813ec18dfd
   ObjectMapper: e6e4d91ff7f2861df7aecc536c92d8363f4c9677
-  ProgressHUD: abb9136ae23c85204236828562cb9a8ec98efb44
   PromiseKit: 74e6ab5894856b4762fef547055c809bca91d440
   RxCocoa: ac16414696ae706516be3e1ab00fcce5bdc9be8a
   RxGesture: f3efb47ed2d26a8082f7b660d4a59970e275a7f8

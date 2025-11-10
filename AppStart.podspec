@@ -37,11 +37,16 @@ Pod::Spec.new do |s|
   end
   # --- SwiftGen end ---
   
+  # 子模块：ProgressHUD
+  s.subspec 'ProgressHUD' do |hud|
+    hud.source_files = 'AppStart/ProgressHUD/**/*.{swift}'
+  end
+  
   # 子模块：Base
   s.subspec 'Base' do |base|
       # 使用 Ruby 数组简化多个依赖的定义
       # 扩展自定义Hud;  pod 'ProgressHUD', :git => 'https://github.com/hubin97/ProgressHUD.git'
-      ['SnapKit', 'Kingfisher', 'Toast-Swift', 'ProgressHUD', 'PromiseKit'].each do |dd|
+      ['SnapKit', 'Kingfisher', 'Toast-Swift', 'PromiseKit'].each do |dd|
           base.dependency dd
       end
       
@@ -49,12 +54,13 @@ Pod::Spec.new do |s|
       base.subspec 'Core' do |ss|
           ss.framework = "Foundation", "UIKit"
           ss.source_files = 'AppStart/Base/Core/**/*.swift'
+          ss.dependency 'AppStart/ProgressHUD'
       end
       
       base.subspec 'UI' do |ss|
           ss.source_files = 'AppStart/Base/UI/*.swift'
-          ss.dependency 'AppStart/Base/Core'
           ss.dependency 'AppStart/Sources'
+          ss.dependency 'AppStart/Base/Core'
       end
       
   end
@@ -104,7 +110,9 @@ Pod::Spec.new do |s|
   
   # 子模块：Network
   s.subspec 'Network' do |http|
-      ['RxSwift', 'RxRelay', 'Moya', 'ObjectMapper', 'PromiseKit', 'ProgressHUD'].each do |dd|
+      #http.dependency 'ProgressHUD', :git => 'https://github.com/YourName/ProgressHUD.git', :branch => 'main'
+
+      ['RxSwift', 'RxRelay', 'Moya', 'ObjectMapper', 'PromiseKit'].each do |dd|
           http.dependency dd
       end
       
