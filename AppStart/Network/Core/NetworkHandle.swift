@@ -43,7 +43,9 @@ public protocol NetworkHandleProvider: AnyObject {
 public extension NetworkHandleProvider {
     /// 默认失败处理为空实现，业务层可按需重写
     func failureHandle(error: MoyaError) {
-        ProgressHUD.showError(error.localizedErrorMessage)
+        //ProgressHUD.showError(error.localizedErrorMessage)
+        //ProgressHUD.showError(NetworkError.from(error).localizedDescription)
+        ProgressHUD.showError(error.userErrorMessage)
     }
 }
 

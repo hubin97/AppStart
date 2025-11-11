@@ -16,10 +16,32 @@ internal enum L10n {
   internal static let stringLogDetails = L10n.tr("Localizable", "string_log_details", fallback: "Log Details")
   /// Log List
   internal static let stringLogList = L10n.tr("Localizable", "string_log_list", fallback: "Log List")
-  /// Failed to map data to %@
-  internal static func stringObjMapFail(_ p1: Any) -> String {
-    return L10n.tr("Localizable", "string_obj_map_fail", String(describing: p1), fallback: "Failed to map data to %@")
-  }
+  /// Request was cancelled.
+  internal static let stringNetCancelled = L10n.tr("Localizable", "string_net_cancelled", fallback: "Request was cancelled.")
+  /// Unable to connect to the server. Please try again later.
+  internal static let stringNetConnectFailed = L10n.tr("Localizable", "string_net_connect_failed", fallback: "Unable to connect to the server. Please try again later.")
+  /// Data parsing failed. Please try again later.
+  internal static let stringNetDecodingError = L10n.tr("Localizable", "string_net_decoding_error", fallback: "Data parsing failed. Please try again later.")
+  /// Request data error. Please try again later.
+  internal static let stringNetEncodingError = L10n.tr("Localizable", "string_net_encoding_error", fallback: "Request data error. Please try again later.")
+  /// You do not have permission to perform this action.
+  internal static let stringNetForbidden = L10n.tr("Localizable", "string_net_forbidden", fallback: "You do not have permission to perform this action.")
+  /// Request failed, please try again later.
+  internal static let stringNetHttpError = L10n.tr("Localizable", "string_net_http_error", fallback: "Request failed, please try again later.")
+  /// The requested resource was not found.
+  internal static let stringNetNotFound = L10n.tr("Localizable", "string_net_not_found", fallback: "The requested resource was not found.")
+  /// Server error, please try again later.
+  internal static let stringNetServerError = L10n.tr("Localizable", "string_net_server_error", fallback: "Server error, please try again later.")
+  /// Untrusted network environment. Please switch networks and try again.
+  internal static let stringNetSslUntrusted = L10n.tr("Localizable", "string_net_ssl_untrusted", fallback: "Untrusted network environment. Please switch networks and try again.")
+  /// Request timed out. Please try again later.
+  internal static let stringNetTimeout = L10n.tr("Localizable", "string_net_timeout", fallback: "Request timed out. Please try again later.")
+  /// Session expired. Please log in again.
+  internal static let stringNetUnauthorized = L10n.tr("Localizable", "string_net_unauthorized", fallback: "Session expired. Please log in again.")
+  /// Network unavailable. Please check your connection.
+  internal static let stringNetUnavailable = L10n.tr("Localizable", "string_net_unavailable", fallback: "Network unavailable. Please check your connection.")
+  /// An unknown error occurred. Please try again later.
+  internal static let stringNetUnknown = L10n.tr("Localizable", "string_net_unknown", fallback: "An unknown error occurred. Please try again later.")
 }
 // swiftlint:enable explicit_type_interface function_parameter_count identifier_name line_length
 // swiftlint:enable nesting type_body_length type_name vertical_whitespace_opening_braces

@@ -19,6 +19,14 @@ public func dispatchOnMain(_ block: @escaping () -> Void) {
     }
 }
 
+public func dispatchOnMain(after delay: TimeInterval = 0, _ block: @escaping () -> Void) {
+    if Thread.isMainThread && delay == 0 {
+        block()
+    } else {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: block)
+    }
+}
+
 // MARK: - 加载配置
 /**
  其他加载情况可以使用Moya自带的插件处理, NetworkActivityPlugin

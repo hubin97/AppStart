@@ -25,7 +25,7 @@ public func fetchJSONString<T: TargetType>(targetType: T.Type, target: T, plugin
             switch result {
             case let .success(response):
                 guard let string = String(data: response.data, encoding: .utf8) else {
-                    resolver.reject(NetworkError.objectMapperError(mapType: ""))
+                    resolver.reject(NetworkError.decodingError(type: String.self))
                     return
                 }
                 resolver.fulfill(string)
@@ -42,7 +42,7 @@ public func fetchTargetMeta<T: TargetType, M: Mappable>(targetType: T.Type, targ
     return Promise<M>.init { resolver in
         fetchJSONString(targetType: targetType, target: target, plugins: plugins).done { result in
             guard let meta = Mapper<M>().map(JSONString: result) else {
-                resolver.reject(NetworkError.objectMapperError(mapType: metaType.self))
+                resolver.reject(NetworkError.decodingError(type: metaType.self))
                 return
             }
             resolver.fulfill(meta)
@@ -58,7 +58,7 @@ public func fetchTargetList<T: TargetType, M: Mappable>(targetType: T.Type, targ
     return Promise<[M]>.init { resolver in
         fetchJSONString(targetType: targetType, target: target, plugins: plugins).done { result in
             guard let list = Mapper<M>().mapArray(JSONString: result) else {
-                resolver.reject(NetworkError.objectMapperError(mapType: [metaType.self]))
+                resolver.reject(NetworkError.decodingError(type: metaType.self))
                 return
             }
             resolver.fulfill(list)
@@ -75,7 +75,7 @@ public func fetchDataWithProgress<T: TargetType>(targetType: T.Type, target: T, 
             switch result {
             case let .success(response):
                 guard let string = String(data: response.data, encoding: .utf8) else {
-                    resolver.reject(NetworkError.objectMapperError(mapType: ""))
+                    resolver.reject(NetworkError.decodingError(type: String.self))
                     return
                 }
                 resolver.fulfill(string)
