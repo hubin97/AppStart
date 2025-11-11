@@ -117,7 +117,7 @@ public class NetworkHandlePlugin: PluginType {
             case let .success(response):
                 provider.successHandle(response: response)
             case let .failure(error):
-                provider.failureHandle(errorMessage: error.localizedErrorMessage)
+                provider.failureHandle(error: error)
             }
         }
     }

@@ -11,14 +11,10 @@ import Moya
 /**
  外部实现
  1. 
- /// 全局网络处理
- /// 注意：successHandle 在 Promise 的 done 回调之后执行（使用 RunLoop 确保）
- /// loading 的 dismiss 在 done 之前执行，不会影响业务层在 done 中显示的提示
+ /// 全局网络处理, 业务层处理逻辑，如错误码判断等
  class NetworkResponseHandler: NetworkHandleProvider {
-    func successHandle(response: Response) {
-        // 业务层处理逻辑，如错误码判断等
-        // loading 已由 NetworkLoadingPlugin 在 done 之前自动 dismiss
-    }
+    func successHandle(response: Response) {}
+    func failureHandle(error: MoyaError) {}
  }
  
  2.
@@ -38,17 +34,17 @@ import Moya
 
 public protocol NetworkHandleProvider: AnyObject {
     /// 响应成功处理
-    /// 注意：此方法在 Promise 的 done 回调之后执行（使用 RunLoop 确保），确保业务层提示先显示
-    /// loading 的 dismiss 由 NetworkLoadingPlugin 统一处理，无需在此处处理
     func successHandle(response: Response)
     
     /// 响应失败处理（可选，提供默认空实现）
-    func failureHandle(errorMessage: String)
+    func failureHandle(error: MoyaError)
 }
 
 public extension NetworkHandleProvider {
     /// 默认失败处理为空实现，业务层可按需重写
-    func failureHandle(errorMessage: String) {}
+    func failureHandle(error: MoyaError) {
+        ProgressHUD.showError(error.localizedErrorMessage)
+    }
 }
 
 public enum PTEnum {
@@ -85,9 +81,4 @@ public enum PTEnum {
     public static func handle(provider: any NetworkHandleProvider) -> PluginType {
         return NetworkHandlePlugin(provider: provider)
     }
-//    public static func handle(dismiss: Bool = true) -> PluginType {
-//        return NetworkHandlePlugin(dismiss: dismiss) { response in
-//            ResponseHandler.successHandle(dismiss: dismiss, response: response)
-//        }
-//    }
 }

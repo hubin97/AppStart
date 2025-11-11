@@ -28,15 +28,6 @@ Pod::Spec.new do |s|
   
   # ――― Source Code ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― #
   
-  # --- SwiftGen began ---
-  s.subspec 'SwiftGen' do |ss|
-      ss.source_files = 'AppStart/SwiftGen/*'
-  end
-  s.subspec 'Sources' do |ss|
-      ss.source_files = 'AppStart/Sources/Generated/*'
-  end
-  # --- SwiftGen end ---
-  
   # 子模块：ProgressHUD
   s.subspec 'ProgressHUD' do |hud|
     hud.source_files = 'AppStart/ProgressHUD/**/*.{swift}'
@@ -137,24 +128,21 @@ Pod::Spec.new do |s|
   end
 
   # ――― Resources ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― #
-  #s.resource     = 'AppStart/Resources.bundle'
-  #s.resource     = 'AppStart/Resources'
-#  s.resource_bundles = {
-#    'AppStart' => ['AppStart/Resources/**/*']
-#  }
-#  s.preserve_paths   = 'AppStart/Resources'
-  # 注意只有下面方式支持swiftgen生成文件资源且不出现引用问题
-  s.resources = ['AppStart/Resources/**/*']
+  
+  # --- SwiftGen began ---
+  s.subspec 'SwiftGen' do |ss|
+      ss.source_files = 'AppStart/SwiftGen/*'
+  end
+  s.subspec 'Sources' do |ss|
+      ss.source_files = 'AppStart/Sources/Generated/*'
+  end
+  s.resources = [
+    'AppStart/Resources/**/*.{xcassets,strings,xcprivacy}',
+  ]
+
+  # --- SwiftGen end ---
 
   # ――― Project Settings ――――――――――――――――――――――――――――――――――――――――――――――――――――――――― #
   s.requires_arc = true
   
-#  s.prepare_command = <<-CMD
-#    #cd "#{__dir__}"  # 切换到 podspec 所在目录
-#    if which swiftgen >/dev/null; then
-#      swiftgen config run --config AppStart/SwiftGen/swiftgen.yml
-#    else
-#      echo "⚠️ SwiftGen not installed, skipping codegen"
-#    fi
-#  CMD
 end

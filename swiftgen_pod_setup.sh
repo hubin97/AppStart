@@ -341,10 +341,10 @@ SWIFTGEN_SUBSPEC_BLOCK="  # --- SwiftGen began ---\n  s.subspec 'SwiftGen' do |s
 
 append_if_missing "$PODSPEC_FILE" "s.subspec 'SwiftGen' do" "$SWIFTGEN_SUBSPEC_BLOCK"
 
-# 资源配置：仅包含 .xcassets 与 .strings（按当前需求精简）
+# 资源配置：仅包含 xcprivacy, .xcassets 与 .strings（按当前需求精简）
 RES_LINE="  s.resources = [\n"
-RES_LINE+="    '${REL_PREFIX}Resources/**/*.xcassets',\n"
-RES_LINE+="    '${REL_PREFIX}Resources/**/*.strings'\n"
+RES_LINE+="    '${REL_PREFIX}Resources/**/*.{xcassets,strings,xcprivacy}',\n"
+#RES_LINE+="    '${REL_PREFIX}Resources/**/*.strings'\n"
 RES_LINE+="  ]\n"
 if ! grep -qE "s\.resources\s*=\s*\[.*Resources/\*\*/\*.*\]" "$PODSPEC_FILE"; then
   append_if_missing "$PODSPEC_FILE" "s.resources" "$RES_LINE"
