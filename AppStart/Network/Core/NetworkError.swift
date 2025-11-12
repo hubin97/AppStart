@@ -9,39 +9,37 @@ import Foundation
 import Moya
 import Alamofire
 
-/// 业务层部分（只覆盖 objectMapperError）
-//extension NetworkError {
-//    /// 业务层自定义错误提示
-//    public var errorDescription: String? {
-//        switch self {
-//        case .decodingError(let type):
-//            // 自定义国际化文案
-//            return NSLocalizedString(
-//                "network_parse_failed",
-//                comment: "数据解析失败，请检查接口返回内容"
-//            ) + ": \(type(of: target))"
-//            
-//        default:
-//            //  其他错误仍使用私有库默认实现
-//            return (self as NetworkErrorDescribing).defaultErrorDescription
-//        }
-//    }
-//    
-//    /// 重新指向
-//    public var localizedDescription: String {
-//        return self.errorDescription ?? ""
-//    }
-//}
+/// 业务层扩展示例（可选）
+/// 如果需要覆盖某些错误的描述，可以这样实现：
+///
+/// extension NetworkError {
+///     public var errorDescription: String? {
+///         switch self {
+///         case .decodingError(let type):
+///             // 自定义国际化文案
+///             return NSLocalizedString(
+///                 "network_parse_failed",
+///                 comment: "数据解析失败，请检查接口返回内容"
+///             ) + ": \(type)"
+///         default:
+///             // 其他错误使用默认实现
+///             return self.defaultErrorDescription
+///         }
+///     }
+/// }
+///
+///  // 业务模块调用, 遵循`模块内优先`原则
+///  func failureHandle(error: MoyaError) {
+///    ProgressHUD.dismiss()
+///    let networkError = NetworkError.from(error)
+///    let errorMessage = networkError.errorDescription ?? networkError.localizedDescription
+///    iToast.makeToast(errorMessage)
+///   }
 
 // MARK: - Global Variables & Functions (if necessary)
 
-/// 私有库定义默认本地化描述协议
-public protocol NetworkErrorDescribing {
-    var defaultErrorDescription: String? { get }
-}
-
 /// 自定义网络错误
-public enum NetworkError: Error {
+public enum NetworkError: LocalizedError {
     // MARK: - 系统层（URLError）
     case networkUnavailable
     case timeout
@@ -70,11 +68,12 @@ public enum NetworkError: Error {
     case unknown(message: String)
 }
 
-/// 默认实现（类似 fallback）
-extension NetworkErrorDescribing where Self == NetworkError {
+/// 提供错误描述
+extension NetworkError {
+    /// 默认错误描述实现（业务层可覆盖 errorDescription 并调用此方法获取默认值）
     public var defaultErrorDescription: String? {
         switch self {
-            // 系统层
+        // 系统层
         case .networkUnavailable:
             return L10n.stringNetUnavailable
         case .timeout:
@@ -86,7 +85,7 @@ extension NetworkErrorDescribing where Self == NetworkError {
         case .cancelled:
             return L10n.stringNetCancelled
             
-            // HTTP 层
+        // HTTP 层
         case .unauthorized:
             return L10n.stringNetUnauthorized
         case .forbidden:
@@ -106,7 +105,7 @@ extension NetworkErrorDescribing where Self == NetworkError {
             return L10n.stringNetHttpError
 #endif
             
-            // 编码解析
+        // 编码解析
         case .encodingError:
             return L10n.stringNetEncodingError
         case .decodingError(let type):
@@ -116,11 +115,11 @@ extension NetworkErrorDescribing where Self == NetworkError {
             return L10n.stringNetDecodingError
 #endif
             
-            // 业务层
+        // 业务层
         case .business(_, let msg):
             return msg
             
-            // 自定义
+        // 自定义
         case .exception(let msg):
             return msg
         case .requestError(let message):
@@ -130,14 +129,11 @@ extension NetworkErrorDescribing where Self == NetworkError {
         }
     }
     
-    // 默认实现 localizedDescription
-    public var localizedDescription: String {
-        return self.defaultErrorDescription ?? ""
+    /// 错误描述（业务层可覆盖此属性，并在需要时调用 defaultErrorDescription 获取默认值）
+    public var errorDescription: String? {
+        return defaultErrorDescription
     }
 }
-
-// 默认让 NetworkError 遵循
-extension NetworkError: NetworkErrorDescribing {}
 
 // MoyaError -> NetworkError
 public extension NetworkError {
@@ -230,6 +226,6 @@ public extension MoyaError {
     
     /// 分层处理, 区分错误提示, 业务页面显示
     var userErrorMessage: String {
-        return NetworkError.from(self).localizedDescription
+        return NetworkError.from(self).errorDescription ?? ""
     }
 }
