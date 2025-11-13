@@ -9,7 +9,7 @@
 
 Pod::Spec.new do |s|
   s.name             = 'AppStart'
-  s.version          = '0.1.1'
+  s.version          = '0.1.2'
   s.summary     = "A foundational component library for customizable app development."
   s.description = <<-DESC
   基础组件库，用于高效构建和定制相关应用。

@@ -170,7 +170,7 @@ public func fetchDataWithProgress<T: TargetType>(targetType: T.Type, target: T, 
     return fetchDataWithProgress(target: target, plugins: plugins, progressBlock: progressBlock)
 }
 
-// MARK: - NetworkFetch
+// MARK: - NetworkFetch (Moya + Promise + ObjectMapper)
 public enum NetworkFetch {
     
     /// 获取原始 JSON 字符串
@@ -209,65 +209,83 @@ public enum NetworkFetch {
     }
 }
 
-// async/await API 单独放 extension
+// MARK: - async/await (Moya + async/await + ObjectMapper)
 extension NetworkFetch {
     
-    /// async/await 版本获取 JSON
+    // MARK: - 通用执行
+    @discardableResult
+    private static func perform<T: TargetType>(
+        _ target: T,
+        plugins: [PluginType] = [],
+        progress: ((ProgressResponse) -> Void)? = nil
+    ) async throws -> Response {
+        let provider = makeProvider(for: target, plugins: plugins)
+        return try await withCheckedThrowingContinuation { continuation in
+            provider.request(
+                target,
+                callbackQueue: .main,
+                progress: progress,
+                completion: { result in
+                    switch result {
+                    case .success(let response):
+                        continuation.resume(returning: response)
+                    case .failure(let error):
+                        continuation.resume(throwing: NetworkError.from(error))
+                    }
+                }
+            )
+        }
+    }
+    
+    /// async/await 获取原始 JSON 字符串
     public static func asyncJson<T: TargetType>(
         target: T,
         plugins: [PluginType] = []
     ) async throws -> String {
-        try await withCheckedThrowingContinuation { continuation in
-            fetchJSONString(target: target, plugins: plugins).done { string in
-                continuation.resume(returning: string)
-            }.catch { error in
-                continuation.resume(throwing: error)
-            }
+        let response = try await perform(target, plugins: plugins)
+        guard let json = String(data: response.data, encoding: .utf8) else {
+            throw NetworkError.decodingError(type: String.self)
         }
+        return json
     }
-    
-    /// async/await 版本获取模型
+
+    /// async/await 获取模型
     public static func asyncMeta<T: TargetType, M: Mappable>(
         target: T,
         metaType: M.Type,
         plugins: [PluginType] = []
     ) async throws -> M {
-        try await withCheckedThrowingContinuation { continuation in
-            fetchTargetMeta(target: target, metaType: metaType, plugins: plugins).done { meta in
-                continuation.resume(returning: meta)
-            }.catch { error in
-                continuation.resume(throwing: error)
-            }
+        let response = try await perform(target, plugins: plugins)
+        guard let json = try? response.mapJSON() as? [String: Any],
+              let meta = M(JSON: json) else {
+            throw NetworkError.decodingError(type: metaType)
         }
+        return meta
     }
-    
-    /// async/await 版本获取模型数组
+
+    /// async/await 获取模型数组
     public static func asyncList<T: TargetType, M: Mappable>(
         target: T,
         metaType: M.Type,
         plugins: [PluginType] = []
     ) async throws -> [M] {
-        try await withCheckedThrowingContinuation { continuation in
-            fetchTargetList(target: target, metaType: metaType, plugins: plugins).done { list in
-                continuation.resume(returning: list)
-            }.catch { error in
-                continuation.resume(throwing: error)
-            }
+        let response = try await perform(target, plugins: plugins)
+        guard let jsonArray = try? response.mapJSON() as? [[String: Any]] else {
+            throw NetworkError.decodingError(type: metaType.self)
         }
+        return Mapper<M>().mapArray(JSONArray: jsonArray)
     }
-    
-    /// async/await 版本带进度
+
+    /// async/await 带进度
     public static func asyncProgress<T: TargetType>(
         target: T,
         plugins: [PluginType] = [],
         progress: ProgressBlock? = nil
     ) async throws -> String {
-        try await withCheckedThrowingContinuation { continuation in
-            fetchDataWithProgress(target: target, plugins: plugins, progressBlock: progress).done { string in
-                continuation.resume(returning: string)
-            }.catch { error in
-                continuation.resume(throwing: error)
-            }
+        let response = try await perform(target, plugins: plugins, progress: progress)
+        guard let result = String(data: response.data, encoding: .utf8) else {
+            throw NetworkError.decodingError(type: String.self)
         }
+        return result
     }
 }

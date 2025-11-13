@@ -22,6 +22,7 @@ import Moya
 ///  // 带进度下载
 ///  let fileURL = try await NetworkAsync.download(APITarget.file, onProgress: { print($0) })
 
+// MARK: - NetworkAsync (Moya + async/await + Decodable)
 public enum NetworkAsync {
     
     // MARK: - Provider 构建
