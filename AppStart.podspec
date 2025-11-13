@@ -91,6 +91,7 @@ Pod::Spec.new do |s|
       other.subspec 'UIKit' do |ui|
           ui.source_files = 'AppStart/Utils/UIKit/**/*.{swift}'
           ui.dependency 'AppStart/Base/Core'
+          ui.dependency 'AppStart/Sources'
       end
       
 #      other.subspec 'Protocols' do |pr|
@@ -110,6 +111,7 @@ Pod::Spec.new do |s|
       http.subspec 'Core' do |ss|
           ss.source_files = 'AppStart/Network/Core/*.swift'
           ss.dependency 'AppStart/Utils'
+          ss.dependency 'AppStart/Sources'
       end
       
       http.subspec 'Utils' do |ss|
