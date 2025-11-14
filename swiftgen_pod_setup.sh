@@ -318,7 +318,9 @@ fi
 
 log_i "增量更新 podspec……"
 
-SWIFTGEN_SUBSPEC_BLOCK="  # --- SwiftGen began ---\n  s.subspec 'SwiftGen' do |ss|\n      ss.source_files = '$(basename "$POD_ROOT")/SwiftGen/*'\n  end\n  s.subspec 'Sources' do |ss|\n      ss.source_files = '$(basename "$POD_ROOT")/Sources/Generated/*'\n  end\n  # --- SwiftGen end ---\n"
+#SWIFTGEN_SUBSPEC_BLOCK="  # --- SwiftGen began ---\n  s.subspec 'SwiftGen' do |ss|\n      ss.source_files = '$(basename "$POD_ROOT")/SwiftGen/*'\n  end\n  s.subspec 'Sources' do |ss|\n      ss.source_files = '$(basename "$POD_ROOT")/Sources/Generated/*'\n  end\n  # --- SwiftGen end ---\n"
+SWIFTGEN_SUBSPEC_BLOCK="  # --- SwiftGen began ---\n  s.subspec 'Sources' do |ss|\n      ss.source_files = '$(basename "$POD_ROOT")/Sources/Generated/*'\n  end\n  # --- SwiftGen end ---\n"
+
 
 # 将 $(basename "$POD_ROOT") 替换为真实目录名（相对路径前缀）
 REL_ROOT_NAME="$(basename "$POD_ROOT")"
@@ -337,7 +339,8 @@ PY
 
 [[ -n "$REL_PREFIX" ]] && REL_PREFIX="$REL_PREFIX/"
 
-SWIFTGEN_SUBSPEC_BLOCK="  # --- SwiftGen began ---\n  s.subspec 'SwiftGen' do |ss|\n      ss.source_files = '${REL_PREFIX}SwiftGen/*'\n  end\n  s.subspec 'Sources' do |ss|\n      ss.source_files = '${REL_PREFIX}Sources/Generated/*'\n  end\n  # --- SwiftGen end ---\n"
+#SWIFTGEN_SUBSPEC_BLOCK="  # --- SwiftGen began ---\n  s.subspec 'SwiftGen' do |ss|\n      ss.source_files = '${REL_PREFIX}SwiftGen/*'\n  end\n  s.subspec 'Sources' do |ss|\n      ss.source_files = '${REL_PREFIX}Sources/Generated/*'\n  end\n  # --- SwiftGen end ---\n"
+SWIFTGEN_SUBSPEC_BLOCK="  # --- SwiftGen began ---\n  s.subspec 'Sources' do |ss|\n      ss.source_files = '${REL_PREFIX}Sources/Generated/*'\n  end\n  # --- SwiftGen end ---\n"
 
 append_if_missing "$PODSPEC_FILE" "s.subspec 'SwiftGen' do" "$SWIFTGEN_SUBSPEC_BLOCK"
 

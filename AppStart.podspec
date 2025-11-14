@@ -129,12 +129,12 @@ Pod::Spec.new do |s|
       ble.source_files = 'AppStart/BLE/**/*.swift'
   end
 
+  # ――― Project Settings ――――――――――――――――――――――――――――――――――――――――――――――――――――――――― #
+  s.requires_arc = true
+
   # ――― Resources ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― #
-  
+ 
   # --- SwiftGen began ---
-  s.subspec 'SwiftGen' do |ss|
-      ss.source_files = 'AppStart/SwiftGen/*'
-  end
   s.subspec 'Sources' do |ss|
       ss.source_files = 'AppStart/Sources/Generated/*'
   end
@@ -144,7 +144,4 @@ Pod::Spec.new do |s|
 
   # --- SwiftGen end ---
 
-  # ――― Project Settings ――――――――――――――――――――――――――――――――――――――――――――――――――――――――― #
-  s.requires_arc = true
-  
 end

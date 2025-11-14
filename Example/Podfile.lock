@@ -1,74 +1,73 @@
 PODS:
   - Alamofire (5.10.2)
-  - AppStart (0.1.1):
-    - AppStart/Base (= 0.1.1)
-    - AppStart/BLE (= 0.1.1)
-    - AppStart/Network (= 0.1.1)
-    - AppStart/ProgressHUD (= 0.1.1)
-    - AppStart/Sources (= 0.1.1)
-    - AppStart/SwiftGen (= 0.1.1)
-    - AppStart/Utils (= 0.1.1)
-  - AppStart/Base (0.1.1):
-    - AppStart/Base/Core (= 0.1.1)
-    - AppStart/Base/UI (= 0.1.1)
+  - AppStart (0.1.2):
+    - AppStart/Base (= 0.1.2)
+    - AppStart/BLE (= 0.1.2)
+    - AppStart/Network (= 0.1.2)
+    - AppStart/ProgressHUD (= 0.1.2)
+    - AppStart/Sources (= 0.1.2)
+    - AppStart/Utils (= 0.1.2)
+  - AppStart/Base (0.1.2):
+    - AppStart/Base/Core (= 0.1.2)
+    - AppStart/Base/UI (= 0.1.2)
     - Kingfisher
     - PromiseKit
     - SnapKit
     - Toast-Swift
-  - AppStart/Base/Core (0.1.1):
+  - AppStart/Base/Core (0.1.2):
     - AppStart/ProgressHUD
     - Kingfisher
     - PromiseKit
     - SnapKit
     - Toast-Swift
-  - AppStart/Base/UI (0.1.1):
+  - AppStart/Base/UI (0.1.2):
     - AppStart/Base/Core
     - AppStart/Sources
     - Kingfisher
     - PromiseKit
     - SnapKit
     - Toast-Swift
-  - AppStart/BLE (0.1.1):
+  - AppStart/BLE (0.1.2):
     - "NSObject+Rx"
     - RxCocoa
     - RxSwift
-  - AppStart/Network (0.1.1):
-    - AppStart/Network/Core (= 0.1.1)
-    - AppStart/Network/Utils (= 0.1.1)
+  - AppStart/Network (0.1.2):
+    - AppStart/Network/Core (= 0.1.2)
+    - AppStart/Network/Utils (= 0.1.2)
     - Moya
     - ObjectMapper
     - PromiseKit
     - RxRelay
     - RxSwift
-  - AppStart/Network/Core (0.1.1):
+  - AppStart/Network/Core (0.1.2):
+    - AppStart/Sources
     - AppStart/Utils
     - Moya
     - ObjectMapper
     - PromiseKit
     - RxRelay
     - RxSwift
-  - AppStart/Network/Utils (0.1.1):
+  - AppStart/Network/Utils (0.1.2):
     - Moya
     - ObjectMapper
     - PromiseKit
     - RxRelay
     - RxSwift
-  - AppStart/ProgressHUD (0.1.1)
-  - AppStart/Sources (0.1.1)
-  - AppStart/SwiftGen (0.1.1)
-  - AppStart/Utils (0.1.1):
-    - AppStart/Utils/AuthStatus (= 0.1.1)
-    - AppStart/Utils/Helpers (= 0.1.1)
-    - AppStart/Utils/LoggerManager (= 0.1.1)
-    - AppStart/Utils/Rx (= 0.1.1)
-    - AppStart/Utils/UIKit (= 0.1.1)
+  - AppStart/ProgressHUD (0.1.2)
+  - AppStart/Sources (0.1.2)
+  - AppStart/Utils (0.1.2):
+    - AppStart/Utils/AuthStatus (= 0.1.2)
+    - AppStart/Utils/Helpers (= 0.1.2)
+    - AppStart/Utils/LoggerManager (= 0.1.2)
+    - AppStart/Utils/Rx (= 0.1.2)
+    - AppStart/Utils/UIKit (= 0.1.2)
     - CocoaLumberjack
     - Kingfisher
     - RxGesture
     - RxRelay
     - RxSwift
     - Toast-Swift
-  - AppStart/Utils/AuthStatus (0.1.1):
+  - AppStart/Utils/AuthStatus (0.1.2):
     - AppStart/Base/Core
     - CocoaLumberjack
     - Kingfisher
@@ -76,7 +75,7 @@ PODS:
     - RxRelay
     - RxSwift
     - Toast-Swift
-  - AppStart/Utils/Helpers (0.1.1):
+  - AppStart/Utils/Helpers (0.1.2):
     - AppStart/Base/Core
     - CocoaLumberjack
     - Kingfisher
@@ -84,7 +83,7 @@ PODS:
     - RxRelay
     - RxSwift
     - Toast-Swift
-  - AppStart/Utils/LoggerManager (0.1.1):
+  - AppStart/Utils/LoggerManager (0.1.2):
     - AppStart/Base
     - AppStart/Sources
     - AppStart/Utils/Helpers
@@ -94,15 +93,16 @@ PODS:
     - RxRelay
     - RxSwift
     - Toast-Swift
-  - AppStart/Utils/Rx (0.1.1):
+  - AppStart/Utils/Rx (0.1.2):
     - CocoaLumberjack
     - Kingfisher
     - RxGesture
     - RxRelay
     - RxSwift
     - Toast-Swift
-  - AppStart/Utils/UIKit (0.1.1):
+  - AppStart/Utils/UIKit (0.1.2):
     - AppStart/Base/Core
+    - AppStart/Sources
     - CocoaLumberjack
     - Kingfisher
     - RxGesture
@@ -166,7 +166,7 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   Alamofire: 7193b3b92c74a07f85569e1a6c4f4237291e7496
-  AppStart: 6db4b223f39f63d3d26b820d2ba42ba239cc2f70
+  AppStart: a06f508098f23b7ac8b1c677edcde323ef292cf4
   CocoaLumberjack: 5644158777912b7de7469fa881f8a3f259c2512a
   Kingfisher: 64278f126a815d0e2d391cdf71311b85882c4de0
   Moya: 138f0573e53411fb3dc17016add0b748dfbd78ee
