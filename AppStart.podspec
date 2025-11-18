@@ -102,6 +102,7 @@ Pod::Spec.new do |s|
           pr.dependency 'MJRefresh'
           pr.dependency 'PromiseKit'
           pr.dependency 'AppStart/Base'
+          pr.dependency 'AppStart/Utils/UIKit'
       end
   end
   

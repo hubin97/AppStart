@@ -1,0 +1,28 @@
+"mj_header_refresh" = "Zum Aktualisieren nach unten ziehen";
+"mj_header_release" = "Zum Aktualisieren loslassen";
+"mj_header_loading" = "Wird geladen...";
+"mj_header_lastupdate" = "Letztes Update";
+"mj_header_today" = "Heute";
+"mj_header_norecord" = "Keine Einträge";
+"mj_footer_refresh" = "Tippen oder nach oben ziehen, um mehr zu laden";
+"mj_footer_loading" = "Wird geladen...";
+"mj_footer_nodata" = "Keine weiteren Daten";
+
+"string_log_list" = "Protokollliste";
+"string_latest" = "Neueste";
+"string_log_details" = "Protokolldetails";
+"string_not_record_yet_tips" = "Keine Einträge verfügbar";
+
+"string_net_unavailable" = "Netzwerk nicht verfügbar. Bitte prüfen Sie Ihre Verbindung.";
+"string_net_timeout" = "Anfrage zeitüberschritten. Bitte versuchen Sie es später erneut.";
+"string_net_ssl_untrusted" = "Unsichere Netzwerkumgebung. Bitte wechseln Sie das Netzwerk und versuchen Sie es erneut.";
+"string_net_connect_failed" = "Verbindung zum Server fehlgeschlagen. Bitte versuchen Sie es später erneut.";
+"string_net_cancelled" = "Anfrage wurde abgebrochen.";
+"string_net_unauthorized" = "Sitzung abgelaufen. Bitte erneut anmelden.";
+"string_net_forbidden" = "Sie haben keine Berechtigung, diese Aktion auszuführen.";
+"string_net_not_found" = "Die angeforderte Ressource wurde nicht gefunden.";
+"string_net_server_error" = "Serverfehler, bitte versuchen Sie es später erneut.";
+"string_net_http_error" = "Anfrage fehlgeschlagen, bitte versuchen Sie es später erneut.";
+"string_net_encoding_error" = "Fehler bei den Anfragedaten. Bitte versuchen Sie es später erneut.";
+"string_net_decoding_error" = "Daten konnten nicht verarbeitet werden. Bitte versuchen Sie es später erneut.";
+"string_net_unknown" = "Ein unbekannter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.";

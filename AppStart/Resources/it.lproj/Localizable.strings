@@ -1,0 +1,28 @@
+"mj_header_refresh" = "Tira giù per aggiornare";
+"mj_header_release" = "Rilascia per aggiornare";
+"mj_header_loading" = "Caricamento...";
+"mj_header_lastupdate" = "Ultimo aggiornamento";
+"mj_header_today" = "Oggi";
+"mj_header_norecord" = "Nessun record";
+"mj_footer_refresh" = "Tocca o tira su per caricare di più";
+"mj_footer_loading" = "Caricamento...";
+"mj_footer_nodata" = "Nessun dato disponibile";
+
+"string_log_list" = "Elenco Log";
+"string_latest" = "Ultimi";
+"string_log_details" = "Dettagli Log";
+"string_not_record_yet_tips" = "Nessun record disponibile";
+
+"string_net_unavailable" = "Rete non disponibile. Controlla la tua connessione.";
+"string_net_timeout" = "La richiesta è scaduta. Riprova più tardi.";
+"string_net_ssl_untrusted" = "Ambiente di rete non attendibile. Cambia rete e riprova.";
+"string_net_connect_failed" = "Impossibile connettersi al server. Riprova più tardi.";
+"string_net_cancelled" = "La richiesta è stata annullata.";
+"string_net_unauthorized" = "Sessione scaduta. Effettua nuovamente il login.";
+"string_net_forbidden" = "Non hai il permesso di eseguire questa azione.";
+"string_net_not_found" = "La risorsa richiesta non è stata trovata.";
+"string_net_server_error" = "Errore del server, riprova più tardi.";
+"string_net_http_error" = "Richiesta fallita, riprova più tardi.";
+"string_net_encoding_error" = "Errore nei dati della richiesta. Riprova più tardi.";
+"string_net_decoding_error" = "Errore nell'elaborazione dei dati. Riprova più tardi.";
+"string_net_unknown" = "Si è verificato un errore sconosciuto. Riprova più tardi.";
