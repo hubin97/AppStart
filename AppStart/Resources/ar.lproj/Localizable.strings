@@ -1,0 +1,28 @@
+"mj_header_refresh" = "اسحب للأسفل للتحديث";
+"mj_header_release" = "حرّر للتحديث";
+"mj_header_loading" = "جارٍ التحميل...";
+"mj_header_lastupdate" = "آخر تحديث";
+"mj_header_today" = "اليوم";
+"mj_header_norecord" = "لا يوجد سجل";
+"mj_footer_refresh" = "اضغط أو اسحب للأعلى لتحميل المزيد";
+"mj_footer_loading" = "جارٍ التحميل...";
+"mj_footer_nodata" = "لا توجد بيانات إضافية";
+
+"string_log_list" = "قائمة السجلات";
+"string_latest" = "الأحدث";
+"string_log_details" = "تفاصيل السجل";
+"string_not_record_yet_tips" = "لا توجد سجلات متاحة";
+
+"string_net_unavailable" = "الشبكة غير متاحة. يرجى التحقق من الاتصال.";
+"string_net_timeout" = "انتهت مهلة الطلب. يرجى المحاولة لاحقًا.";
+"string_net_ssl_untrusted" = "بيئة شبكة غير موثوقة. يرجى تبديل الشبكة والمحاولة مرة أخرى.";
+"string_net_connect_failed" = "تعذّر الاتصال بالخادم. يرجى المحاولة لاحقًا.";
+"string_net_cancelled" = "تم إلغاء الطلب.";
+"string_net_unauthorized" = "انتهت صلاحية الجلسة. يرجى تسجيل الدخول مرة أخرى.";
+"string_net_forbidden" = "ليس لديك إذن للقيام بهذا الإجراء.";
+"string_net_not_found" = "المورد المطلوب غير موجود.";
+"string_net_server_error" = "خطأ في الخادم، يرجى المحاولة لاحقًا.";
+"string_net_http_error" = "فشل الطلب، يرجى المحاولة لاحقًا.";
+"string_net_encoding_error" = "خطأ في بيانات الطلب. يرجى المحاولة لاحقًا.";
+"string_net_decoding_error" = "فشل تحليل البيانات. يرجى المحاولة لاحقًا.";
+"string_net_unknown" = "حدث خطأ غير معروف. يرجى المحاولة لاحقًا.";

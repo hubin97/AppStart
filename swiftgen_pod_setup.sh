@@ -342,7 +342,7 @@ PY
 #SWIFTGEN_SUBSPEC_BLOCK="  # --- SwiftGen began ---\n  s.subspec 'SwiftGen' do |ss|\n      ss.source_files = '${REL_PREFIX}SwiftGen/*'\n  end\n  s.subspec 'Sources' do |ss|\n      ss.source_files = '${REL_PREFIX}Sources/Generated/*'\n  end\n  # --- SwiftGen end ---\n"
 SWIFTGEN_SUBSPEC_BLOCK="  # --- SwiftGen began ---\n  s.subspec 'Sources' do |ss|\n      ss.source_files = '${REL_PREFIX}Sources/Generated/*'\n  end\n  # --- SwiftGen end ---\n"
 
-append_if_missing "$PODSPEC_FILE" "s.subspec 'SwiftGen' do" "$SWIFTGEN_SUBSPEC_BLOCK"
+append_if_missing "$PODSPEC_FILE" "s.subspec 'Sources' do" "$SWIFTGEN_SUBSPEC_BLOCK"
 
 # 资源配置：仅包含 xcprivacy, .xcassets 与 .strings（按当前需求精简）
 RES_LINE="  s.resources = [\n"

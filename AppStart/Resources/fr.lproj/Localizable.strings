@@ -1,0 +1,28 @@
+"mj_header_refresh" = "Tirez vers le bas pour rafraîchir";
+"mj_header_release" = "Relâchez pour rafraîchir";
+"mj_header_loading" = "Chargement...";
+"mj_header_lastupdate" = "Dernière mise à jour";
+"mj_header_today" = "Aujourd'hui";
+"mj_header_norecord" = "Aucun enregistrement";
+"mj_footer_refresh" = "Touchez ou tirez vers le haut pour charger plus";
+"mj_footer_loading" = "Chargement...";
+"mj_footer_nodata" = "Plus de données";
+
+"string_log_list" = "Liste des journaux";
+"string_latest" = "Dernier";
+"string_log_details" = "Détails du journal";
+"string_not_record_yet_tips" = "Aucun enregistrement disponible";
+
+"string_net_unavailable" = "Réseau indisponible. Veuillez vérifier votre connexion.";
+"string_net_timeout" = "Délai d'attente dépassé. Veuillez réessayer plus tard.";
+"string_net_ssl_untrusted" = "Environnement réseau non fiable. Veuillez changer de réseau et réessayer.";
+"string_net_connect_failed" = "Impossible de se connecter au serveur. Veuillez réessayer plus tard.";
+"string_net_cancelled" = "La requête a été annulée.";
+"string_net_unauthorized" = "Session expirée. Veuillez vous reconnecter.";
+"string_net_forbidden" = "Vous n'avez pas la permission d'effectuer cette action.";
+"string_net_not_found" = "La ressource demandée est introuvable.";
+"string_net_server_error" = "Erreur du serveur, veuillez réessayer plus tard.";
+"string_net_http_error" = "La requête a échoué, veuillez réessayer plus tard.";
+"string_net_encoding_error" = "Erreur de données de la requête. Veuillez réessayer plus tard.";
+"string_net_decoding_error" = "Échec de l'analyse des données. Veuillez réessayer plus tard.";
+"string_net_unknown" = "Une erreur inconnue s'est produite. Veuillez réessayer plus tard.";

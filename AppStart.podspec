@@ -9,7 +9,7 @@
 
 Pod::Spec.new do |s|
   s.name             = 'AppStart'
-  s.version          = '0.1.2'
+  s.version          = '0.1.3'
   s.summary     = "A foundational component library for customizable app development."
   s.description = <<-DESC
   基础组件库，用于高效构建和定制相关应用。
@@ -92,12 +92,14 @@ Pod::Spec.new do |s|
           ui.source_files = 'AppStart/Utils/UIKit/**/*.{swift}'
           ui.dependency 'AppStart/Base/Core'
           ui.dependency 'AppStart/Sources'
+          ui.dependency 'MJRefresh'
+          ui.dependency 'DZNEmptyDataSet'
       end
       
-#      other.subspec 'Protocols' do |pr|
-#          pr.source_files = 'AppStart/Utils/Protocols/**/*.{swift}'
-#          pr.dependency 'RxRelay'
-#      end
+      other.subspec 'Protocols' do |pr|
+          pr.source_files = 'AppStart/Utils/Protocols/**/*.{swift}'
+          pr.dependency 'RxRelay'
+      end
   end
   
   # 子模块：Network
@@ -133,15 +135,14 @@ Pod::Spec.new do |s|
   s.requires_arc = true
 
   # ――― Resources ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― #
- 
+  s.resources = [
+    'AppStart/Resources/**/*.{xcassets,strings,xcprivacy}',
+  ]
+  
   # --- SwiftGen began ---
   s.subspec 'Sources' do |ss|
       ss.source_files = 'AppStart/Sources/Generated/*'
   end
-  s.resources = [
-    'AppStart/Resources/**/*.{xcassets,strings,xcprivacy}',
-  ]
-
   # --- SwiftGen end ---
 
 end

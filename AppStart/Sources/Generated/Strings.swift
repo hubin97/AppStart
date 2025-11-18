@@ -10,6 +10,24 @@ import Foundation
 // swiftlint:disable explicit_type_interface function_parameter_count identifier_name line_length
 // swiftlint:disable nesting type_body_length type_name vertical_whitespace_opening_braces
 internal enum L10n {
+  /// Loading...
+  internal static let mjFooterLoading = L10n.tr("Localizable", "mj_footer_loading", fallback: "Loading...")
+  /// No more data
+  internal static let mjFooterNodata = L10n.tr("Localizable", "mj_footer_nodata", fallback: "No more data")
+  /// Tap or pull up to load more
+  internal static let mjFooterRefresh = L10n.tr("Localizable", "mj_footer_refresh", fallback: "Tap or pull up to load more")
+  /// Last update
+  internal static let mjHeaderLastupdate = L10n.tr("Localizable", "mj_header_lastupdate", fallback: "Last update")
+  /// Loading...
+  internal static let mjHeaderLoading = L10n.tr("Localizable", "mj_header_loading", fallback: "Loading...")
+  /// No record
+  internal static let mjHeaderNorecord = L10n.tr("Localizable", "mj_header_norecord", fallback: "No record")
+  /// Pull down to refresh
+  internal static let mjHeaderRefresh = L10n.tr("Localizable", "mj_header_refresh", fallback: "Pull down to refresh")
+  /// Release to refresh
+  internal static let mjHeaderRelease = L10n.tr("Localizable", "mj_header_release", fallback: "Release to refresh")
+  /// Today
+  internal static let mjHeaderToday = L10n.tr("Localizable", "mj_header_today", fallback: "Today")
   /// Latest
   internal static let stringLatest = L10n.tr("Localizable", "string_latest", fallback: "Latest")
   /// Log Details
@@ -42,6 +60,8 @@ internal enum L10n {
   internal static let stringNetUnavailable = L10n.tr("Localizable", "string_net_unavailable", fallback: "Network unavailable. Please check your connection.")
   /// An unknown error occurred. Please try again later.
   internal static let stringNetUnknown = L10n.tr("Localizable", "string_net_unknown", fallback: "An unknown error occurred. Please try again later.")
+  /// No Records Available
+  internal static let stringNotRecordYetTips = L10n.tr("Localizable", "string_not_record_yet_tips", fallback: "No Records Available")
 }
 // swiftlint:enable explicit_type_interface function_parameter_count identifier_name line_length
 // swiftlint:enable nesting type_body_length type_name vertical_whitespace_opening_braces

@@ -1,6 +1,18 @@
+"mj_header_refresh" = "Pull down to refresh";
+"mj_header_release" = "Release to refresh";
+"mj_header_loading" = "Loading...";
+"mj_header_lastupdate" = "Last update";
+"mj_header_today" = "Today";
+"mj_header_norecord" = "No record";
+"mj_footer_refresh" = "Tap or pull up to load more";
+"mj_footer_loading" = "Loading...";
+"mj_footer_nodata" = "No more data";
+
 "string_log_list" = "Log List";
 "string_latest" = "Latest";
 "string_log_details" = "Log Details";
+"string_not_record_yet_tips" = "No Records Available";
+
 "string_net_unavailable" = "Network unavailable. Please check your connection.";
 "string_net_timeout" = "Request timed out. Please try again later.";
 "string_net_ssl_untrusted" = "Untrusted network environment. Please switch networks and try again.";

@@ -28,6 +28,7 @@ internal enum Asset {
   internal static let iconLeftWhite = ImageAsset(name: "icon_left_white")
   internal static let iconLogger = ImageAsset(name: "icon_logger")
   internal static let iconLogger2 = ImageAsset(name: "icon_logger2")
+  internal static let iconNullData = ImageAsset(name: "icon_null_data")
   internal static let iconRightBlack = ImageAsset(name: "icon_right_black")
   internal static let iconRightWhite = ImageAsset(name: "icon_right_white")
 }
