@@ -5,7 +5,6 @@
 //  Created by Hubin_Huang on 2022/5/31.
 //  Copyright © 2020 云图数字. All rights reserved.
 
-import Foundation
 import UIKit
 
 // MARK: - global var and methods

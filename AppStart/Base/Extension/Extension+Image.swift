@@ -8,7 +8,6 @@
 
 //单元测试 ✅
 import UIKit
-import Foundation
 
 //MARK: - global var and methods
 fileprivate typealias Extension_Image = UIImage

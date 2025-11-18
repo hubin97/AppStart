@@ -15,8 +15,8 @@ import MJRefresh
 ///
 open class CollectionView: UICollectionView {
     
-    var mjHeaderView = LTRefreshHeader()
-    var mjFooterView = LTRefreshFooter()
+    var mjHeaderView = RefreshHeader()
+    var mjFooterView = RefreshFooter()
 
     /// 点击空页面视图
     public let didTapEmptyView: PublishRelay = PublishRelay<Void>()

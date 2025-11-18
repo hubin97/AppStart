@@ -21,8 +21,8 @@ open class TableView: UITableView {
         case center     // 居中（不拉伸）
     }
     
-    var mjHeaderView = LTRefreshHeader()
-    var mjFooterView = LTRefreshFooter()
+    var mjHeaderView = RefreshHeader()
+    var mjFooterView = RefreshFooter()
 
     /// 点击空页面视图
     public let didTapEmptyView: PublishRelay = PublishRelay<Void>()

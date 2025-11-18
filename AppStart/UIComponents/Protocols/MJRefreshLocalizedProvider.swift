@@ -6,7 +6,6 @@
 //  Copyright © 2025 Hubin_Huang. All rights reserved.
 
 import Foundation
-import PromiseKit
 import MJRefresh
 import RxRelay
 
@@ -83,59 +82,3 @@ extension MJRefreshLocalizedProvider {
 
 // MARK: - MJRefreshComponent
 extension MJRefreshComponent: MJRefreshLocalizedProvider {}
-
-// MARK: - Custom
-public class LTRefreshHeader: MJRefreshNormalHeader {
-
-    public var headerRefresh = PublishRelay<Void>()
-    convenience init() {
-        self.init(frame: CGRect.zero)
-        self.setupLocalizedStrings()
-        self.refreshingBlock = {[weak self] in
-            self?.headerRefresh.accept(())
-        }
-    }
-}
-
-public class LTRefreshFooter: MJRefreshAutoNormalFooter {
-    
-    public var footerRefresh = PublishRelay<Void>()
-    convenience init() {
-        self.init(frame: CGRect.zero)
-        self.setupLocalizedStrings()
-        self.refreshingBlock = {[weak self] in
-            self?.footerRefresh.accept(())
-        }
-    }
-}
-
-// MARK: -
-/// 下拉刷新
-public protocol LTPullRefreshDataProvider: AnyObject {
-    associatedtype Element
-    
-    var mjHeaderView: LTRefreshHeader { get }
-    var dataList: [Element] { get set }
-    
-    func pullRefresh()
-}
-
-extension LTPullRefreshDataProvider {
-    public func pullRefresh() {}
-}
-
-/// 上拉加载更多
-public protocol LTLoadMoreDataProvider: AnyObject {
-    associatedtype Element
-    
-    var mjFooterView: LTRefreshFooter { get }
-//    var pageNum: Int { get set }
-//    var pageSize: Int { get }
-    var dataList: [Element] { get set }
-    
-    func loadMoreData()
-}
-
-extension LTLoadMoreDataProvider {
-    public func loadMoreData() {}
-}

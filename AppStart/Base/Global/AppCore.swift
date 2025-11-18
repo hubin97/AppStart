@@ -7,7 +7,6 @@
 //
 
 import UIKit
-import Foundation
 // 全局导入, 若主工程没有混编生成.pch文件, 可以使用此方法
 //@_exported import RxSwift
 

@@ -8,7 +8,6 @@
 
 import UIKit
 import CoreImage
-import Foundation
 
 /** 相关资料备忘
  iOS核心动画高级技巧

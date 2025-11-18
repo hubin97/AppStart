@@ -4,6 +4,7 @@
 #
 # Any lines starting with a # are optional, but their use is encouraged
 # To learn more about a Podspec see https://guides.cocoapods.org/syntax/podspec.html
+# > s.source = { :path => '../' }
 # ✗ pod spec lint AppStart.podspec --allow-warnings --verbose
 # ✗ pod trunk push AppStart.podspec --verbose --allow-warnings
 
@@ -15,14 +16,16 @@ Pod::Spec.new do |s|
   基础组件库，用于高效构建和定制相关应用。
   A foundational component library for efficient development and customization of related applications.
   DESC
-
+  
   s.homepage         = 'https://github.com/hubin97/AppStart'
   # s.screenshots     = 'www.example.com/screenshots_1', 'www.example.com/screenshots_2'
   s.license          = { :type => 'MIT', :file => 'LICENSE' }
   s.author           = { 'hubin.h' => '970216474@qq.com' }
-  s.source           = { :git => 'https://github.com/hubin97/AppStart.git', :tag => s.version.to_s }
+  #s.source           = { :git => 'https://github.com/hubin97/AppStart.git', :tag => s.version.to_s }
+  s.source = { :path => '../' }
+  
   # s.social_media_url = 'https://twitter.com/<TWITTER_USERNAME>'
-
+  
   s.ios.deployment_target = '14.0'
   s.swift_versions = ['5.0']
   
@@ -35,109 +38,84 @@ Pod::Spec.new do |s|
   
   # 子模块：Base
   s.subspec 'Base' do |base|
-      # 使用 Ruby 数组简化多个依赖的定义
-      # 扩展自定义Hud;  pod 'ProgressHUD', :git => 'https://github.com/hubin97/ProgressHUD.git'
-      ['SnapKit', 'Kingfisher', 'Toast-Swift', 'PromiseKit'].each do |dd|
-          base.dependency dd
-      end
-      
-      #base.dependency 'Hero', '~> 1.6.3' # 确保使用支持 iOS 13 的版本
-      base.subspec 'Core' do |ss|
-          ss.framework = "Foundation", "UIKit"
-          ss.source_files = 'AppStart/Base/Core/**/*.swift'
-          ss.dependency 'AppStart/ProgressHUD'
-      end
-      
-      base.subspec 'UI' do |ss|
-          ss.source_files = 'AppStart/Base/UI/*.swift'
-          ss.dependency 'AppStart/Sources'
-          ss.dependency 'AppStart/Base/Core'
-      end
-      
+    base.source_files = 'AppStart/Base/**/*.swift'
+    base.dependency 'AppStart/Sources'
+    base.dependency 'SnapKit'
+  end
+  
+  # 子模块：UIComponents
+  s.subspec 'UIComponents' do |ui|
+    ui.source_files = 'AppStart/UIComponents/**/*.{swift}'
+    ui.dependency 'AppStart/Base'
+    ui.dependency 'AppStart/Sources'
+    ui.dependency 'RxRelay'
+    ui.dependency 'MJRefresh'
+    ui.dependency 'DZNEmptyDataSet'
   end
   
   # 子模块：Utils
-  s.subspec 'Utils' do |other|
-      ['Toast-Swift', 'Kingfisher', 'CocoaLumberjack', 'RxSwift', 'RxRelay', 'RxGesture'].each do |dd|
-          other.dependency dd
-      end
-      
-      other.subspec 'AuthStatus' do |auth|
-          auth.source_files = 'AppStart/Utils/AuthStatus'
-          auth.dependency 'AppStart/Base/Core'
-      end
-      
-      other.subspec 'Helpers' do |utils|
-          utils.source_files = 'AppStart/Utils/Helpers'
-          utils.dependency 'Toast-Swift'
-          utils.dependency 'Kingfisher'
-          utils.dependency 'AppStart/Base/Core'
-      end
-      
-      other.subspec 'LoggerManager' do |log|
-          log.source_files = 'AppStart/Utils/LoggerManager'
-          log.dependency 'RxSwift'
-          log.dependency 'CocoaLumberjack'
-          log.dependency 'AppStart/Base'
-          log.dependency 'AppStart/Utils/Helpers'
-          log.dependency 'AppStart/Sources'
-      end
-      
-      other.subspec 'Rx' do |rx|
-          rx.source_files = 'AppStart/Utils/Rx/**/*.{swift}'
-          rx.dependency 'RxGesture'
-      end
-
-      other.subspec 'UIKit' do |ui|
-          ui.source_files = 'AppStart/Utils/UIKit/**/*.{swift}'
-          ui.dependency 'AppStart/Base/Core'
-          ui.dependency 'AppStart/Sources'
-          ui.dependency 'MJRefresh'
-          ui.dependency 'DZNEmptyDataSet'
-      end
-      
-      other.subspec 'Protocols' do |pr|
-          pr.source_files = 'AppStart/Utils/Protocols/**/*.{swift}'
-          pr.dependency 'RxRelay'
-          pr.dependency 'MJRefresh'
-          pr.dependency 'PromiseKit'
-          pr.dependency 'AppStart/Base'
-          pr.dependency 'AppStart/Utils/UIKit'
-      end
+  s.subspec 'Utils' do |utils|
+    utils.subspec 'AuthStatus' do |au|
+      au.source_files = 'AppStart/Utils/AuthStatus'
+      au.dependency 'AppStart/Base'
+    end
+    
+    utils.subspec 'Toolkit' do |tool|
+      tool.source_files = 'AppStart/Utils/Toolkit'
+      tool.dependency 'AppStart/Base'
+      tool.dependency 'PromiseKit'
+      tool.dependency 'Toast-Swift'
+      tool.dependency 'Kingfisher'
+    end
+    
+    utils.subspec 'Logger' do |log|
+      log.source_files = 'AppStart/Utils/Logger'
+      log.dependency 'AppStart/Base'
+      log.dependency 'AppStart/Sources'
+      log.dependency 'AppStart/Utils/Toolkit'
+      log.dependency 'RxSwift'
+      log.dependency 'CocoaLumberjack'
+    end
+    
+    utils.subspec 'Reactive' do |rx|
+      rx.source_files = 'AppStart/Utils/Reactive/**/*.{swift}'
+      rx.dependency 'RxSwift'
+      rx.dependency 'RxRelay'
+      rx.dependency 'RxGesture'
+      rx.dependency 'Kingfisher'
+    end
   end
   
   # 子模块：Network
   s.subspec 'Network' do |http|
-      #http.dependency 'ProgressHUD', :git => 'https://github.com/YourName/ProgressHUD.git', :branch => 'main'
-
-      ['RxSwift', 'RxRelay', 'Moya', 'ObjectMapper', 'PromiseKit'].each do |dd|
-          http.dependency dd
-      end
-      
-      http.subspec 'Core' do |ss|
-          ss.source_files = 'AppStart/Network/Core/*.swift'
-          ss.dependency 'AppStart/Utils'
-          ss.dependency 'AppStart/Sources'
-      end
-      
-      http.subspec 'Utils' do |ss|
-          ss.source_files = 'AppStart/Network/Utils/*.swift'
-          ss.framework = "Foundation", "CoreTelephony"
-      end
+    ['RxSwift', 'RxRelay', 'Moya', 'ObjectMapper', 'PromiseKit'].each do |dd|
+      http.dependency dd
+    end
+    
+    http.subspec 'Core' do |ss|
+      ss.source_files = 'AppStart/Network/Core/*.swift'
+      ss.dependency 'AppStart/Utils'
+      ss.dependency 'AppStart/Sources'
+      ss.dependency 'AppStart/ProgressHUD'
+    end
+    
+    http.subspec 'Utils' do |ss|
+      ss.source_files = 'AppStart/Network/Utils/*.swift'
+      ss.framework = "Foundation", "CoreTelephony"
+    end
   end
   
   # 子模块：BLE
   s.subspec 'BLE' do |ble|
-      ['RxSwift', 'RxCocoa', 'NSObject+Rx'].each do |dd|
-          ble.dependency dd
-      end
-      
-      ble.source_files = 'AppStart/BLE/**/*.swift'
+    ble.source_files = 'AppStart/BLE/**/*.swift'
+    ble.dependency 'RxSwift'
+    ble.dependency 'RxCocoa'
+    ble.dependency 'NSObject+Rx'
   end
-
+  
   # ――― Project Settings ――――――――――――――――――――――――――――――――――――――――――――――――――――――――― #
   s.requires_arc = true
-
+  
   # ――― Resources ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― #
   s.resources = [
     'AppStart/Resources/**/*.{xcassets,strings,xcprivacy}',
@@ -145,8 +123,8 @@ Pod::Spec.new do |s|
   
   # --- SwiftGen began ---
   s.subspec 'Sources' do |ss|
-      ss.source_files = 'AppStart/Sources/Generated/*'
+    ss.source_files = 'AppStart/Sources/Generated/*'
   end
   # --- SwiftGen end ---
-
+  
 end
