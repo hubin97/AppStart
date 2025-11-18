@@ -6,9 +6,8 @@
 //  Copyright © 2020 路特创新. All rights reserved.
 
 import Foundation
-import DZNEmptyDataSet
-import RxRelay
 import MJRefresh
+import DZNEmptyDataSet
 
 /// 1. 扩展下拉刷新, 上拉加载方法
 /// 2. 添加通用空白占位控件, 以及点击事件
@@ -25,7 +24,7 @@ open class TableView: UITableView {
     var mjFooterView = RefreshFooter()
 
     /// 点击空页面视图
-    public let didTapEmptyView: PublishRelay = PublishRelay<Void>()
+    public var didTapEmptyViewBlock: (() -> Void)?
     /// `EmptyView`垂直偏移量
     public var verticalOffset: CGFloat = 0
     /// `EmptyView`图片
@@ -74,7 +73,7 @@ extension TableView: DZNEmptyDataSetSource, DZNEmptyDataSetDelegate {
         return self.verticalOffset
     }
     public func emptyDataSet(_ scrollView: UIScrollView!, didTap view: UIView!) {
-        self.didTapEmptyView.accept(())
+        self.didTapEmptyViewBlock?()
     }
     public func emptyDataSetShouldDisplay(_ scrollView: UIScrollView!) -> Bool {
         return emptyDataSetShouldDisplay

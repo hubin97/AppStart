@@ -12,7 +12,7 @@
 
 Pod::Spec.new do |s|
   s.name             = 'AppStart'
-  s.version          = '0.1.3'
+  s.version          = '0.1.4'
   s.summary     = "A foundational component library for customizable app development."
   s.description = <<-DESC
   基础组件库，用于高效构建和定制相关应用。
@@ -23,8 +23,8 @@ Pod::Spec.new do |s|
   # s.screenshots     = 'www.example.com/screenshots_1', 'www.example.com/screenshots_2'
   s.license          = { :type => 'MIT', :file => 'LICENSE' }
   s.author           = { 'hubin.h' => '970216474@qq.com' }
-  #s.source = { :path => '../' }
-  s.source           = { :git => 'https://github.com/hubin97/AppStart.git', :tag => s.version.to_s }
+  s.source = { :path => '../' }
+#  s.source           = { :git => 'https://github.com/hubin97/AppStart.git', :tag => s.version.to_s }
   
   # s.social_media_url = 'https://twitter.com/<TWITTER_USERNAME>'
   
@@ -47,12 +47,25 @@ Pod::Spec.new do |s|
   
   # 子模块：UIComponents
   s.subspec 'UIComponents' do |ui|
-    ui.source_files = 'AppStart/UIComponents/**/*.{swift}'
-    ui.dependency 'AppStart/Base'
-    ui.dependency 'AppStart/Sources'
-    ui.dependency 'RxRelay'
-    ui.dependency 'MJRefresh'
-    ui.dependency 'DZNEmptyDataSet'
+    ui.subspec 'Views' do |view|
+      view.source_files = 'AppStart/UIComponents/Views/*.swift'
+      view.dependency 'AppStart/Base'
+      view.dependency 'RxRelay'
+      view.dependency 'PromiseKit'
+      view.dependency 'Toast-Swift'
+      view.dependency 'Kingfisher'
+      view.dependency 'DZNEmptyDataSet'
+      view.dependency 'MJRefresh'
+    end
+    ui.subspec 'Protocols' do |pr|
+      pr.source_files = 'AppStart/UIComponents/Protocols/*.swift'
+      pr.dependency 'AppStart/Base'
+      pr.dependency 'AppStart/Sources'
+      pr.dependency 'AppStart/UIComponents/Views'
+      pr.dependency 'RxRelay'
+      pr.dependency 'MJRefresh'
+      pr.dependency 'DZNEmptyDataSet'
+    end
   end
   
   # 子模块：Utils
