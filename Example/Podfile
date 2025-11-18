@@ -31,7 +31,7 @@ post_install do |installer|
       #
       target.build_configurations.each do |config|
           config.build_settings['SWIFT_VERSION'] = '5.0'
-          config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+          config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
       end
   end
 end
