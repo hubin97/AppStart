@@ -99,6 +99,9 @@ Pod::Spec.new do |s|
       other.subspec 'Protocols' do |pr|
           pr.source_files = 'AppStart/Utils/Protocols/**/*.{swift}'
           pr.dependency 'RxRelay'
+          pr.dependency 'MJRefresh'
+          pr.dependency 'PromiseKit'
+          pr.dependency 'AppStart/Base'
       end
   end
   

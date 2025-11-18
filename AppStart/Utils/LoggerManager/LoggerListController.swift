@@ -128,8 +128,13 @@ class LoggerDetailController: ViewController {
 
     @objc func saveToFile() {
         guard let fpath = file?.filePath else { return }
-        let fUrl = URL.init(fileURLWithPath: fpath)
-        let documentVc = UIDocumentPickerViewController.init(url: fUrl, in: .exportToService)
+        let fUrl = URL(fileURLWithPath: fpath)
+        let documentVc: UIDocumentPickerViewController
+        if #available(iOS 14.0, *) {
+            documentVc = UIDocumentPickerViewController(forExporting: [fUrl])
+        } else {
+            documentVc = UIDocumentPickerViewController(url: fUrl, in: .exportToService)
+        }
         documentVc.delegate = self
         documentVc.modalPresentationStyle = .pageSheet
         self.navigationController?.present(documentVc, animated: true, completion: nil)

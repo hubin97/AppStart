@@ -11,13 +11,17 @@ import Foundation
 
 // 状态声明
 public enum AlertState {
-    case show    // 已展示
-    case hide    // 已关闭
+    case willShow       // 将要展示
+    case didShow        // 完全展示
+    case willHide       // 将要关闭
+    case didHide        // 完全关闭
 }
 
 private struct AlertContainableKeys {
     // ✅ chatgpt建议使用静态变量更安全 // UnsafeRawPointer(bitPattern: "onStateChange".hashValue)
     static var onStateChange = 0
+    static var isMaskEnabled = 0
+    static var usingSpringWithDamping = 0
 }
 
 public protocol AlertContainable: AnyObject {
@@ -28,6 +32,9 @@ public protocol AlertContainable: AnyObject {
     /// 是否显示背景蒙层，默认 true
     var isMaskEnabled: Bool { get }
 
+    /// 使用阻尼动效, 默认开启
+    var usingSpringWithDamping: Bool { get }
+    
     /// 显示弹窗
     func show(in parentView: UIView?)
 
@@ -56,6 +63,24 @@ extension AlertContainable where Self: UIView {
         }
     }
     
+    public var isMaskEnabled: Bool {
+        get {
+            objc_getAssociatedObject(self, &AlertContainableKeys.isMaskEnabled) as? Bool ?? true
+        }
+        set {
+            objc_setAssociatedObject(self, &AlertContainableKeys.isMaskEnabled, newValue, .OBJC_ASSOCIATION_ASSIGN)
+        }
+    }
+    
+    public var usingSpringWithDamping: Bool {
+        get {
+            objc_getAssociatedObject(self, &AlertContainableKeys.usingSpringWithDamping) as? Bool ?? true
+        }
+        set {
+            objc_setAssociatedObject(self, &AlertContainableKeys.usingSpringWithDamping, newValue, .OBJC_ASSOCIATION_ASSIGN)
+        }
+    }
+    
     public func setupBaseViews(in parentView: UIView? = nil) {
         guard let superview = parentView ?? UIApplication.shared.windows.first(where: \.isKeyWindow) else { return }
 
@@ -64,7 +89,7 @@ extension AlertContainable where Self: UIView {
 
         if isMaskEnabled {
             let maskView = UIView()
-            maskView.backgroundColor = UIColor.black.withAlphaComponent(0.2)
+            maskView.backgroundColor = UIColor.black.withAlphaComponent(0.5)
             maskView.frame = self.bounds
             maskView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
             addSubview(maskView)
@@ -94,22 +119,42 @@ extension AlertContainable where Self: UIView {
         
         superview.addSubview(self)
 
-        UIView.animate(withDuration: 0.25) {
+        self.onStateChange?(.willShow)
+        self.stateDidChange(to: .willShow)
+
+        // 使用阻尼动效
+        if usingSpringWithDamping {
             self.alpha = 1
-        } completion: { _ in
-            self.onStateChange?(.show)
-            self.stateDidChange(to: .show)
+            self.containerView.transform = CGAffineTransform(scaleX: 1.2, y: 1.2)
+            // usingSpringWithDamping 阻尼越小弹性越大
+            UIView.animate(withDuration: 0.3, delay: 0, usingSpringWithDamping: 0.6, initialSpringVelocity: 1.0, options: [.curveEaseInOut]) {
+                self.containerView.transform = .identity
+            } completion: { _ in
+                self.onStateChange?(.didShow)
+                self.stateDidChange(to: .didShow)
+            }
+        } else {
+            UIView.animate(withDuration: 0.25) {
+                self.alpha = 1
+            } completion: { _ in
+                self.onStateChange?(.didShow)
+                self.stateDidChange(to: .didShow)
+            }
         }
     }
     
     // 关闭
     public func hide(completion: (() -> Void)? = nil) {
+        self.onStateChange?(.willHide)
+        self.stateDidChange(to: .willHide)
+        
         UIView.animate(withDuration: 0.25) {
             self.alpha = 0
         } completion: { _ in
             self.removeFromSuperview()
-            self.onStateChange?(.hide)
-            self.stateDidChange(to: .hide)
+            self.onStateChange?(.didHide)
+            self.stateDidChange(to: .didHide)
+
             completion?()
         }
     }
