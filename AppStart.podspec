@@ -4,8 +4,10 @@
 #
 # Any lines starting with a # are optional, but their use is encouraged
 # To learn more about a Podspec see https://guides.cocoapods.org/syntax/podspec.html
-# > s.source = { :path => '../' }
+# > 本地校验
+#  s.source = { :path => '../' }
 # ✗ pod spec lint AppStart.podspec --allow-warnings --verbose
+# > 推到远端
 # ✗ pod trunk push AppStart.podspec --verbose --allow-warnings
 
 Pod::Spec.new do |s|
@@ -21,8 +23,8 @@ Pod::Spec.new do |s|
   # s.screenshots     = 'www.example.com/screenshots_1', 'www.example.com/screenshots_2'
   s.license          = { :type => 'MIT', :file => 'LICENSE' }
   s.author           = { 'hubin.h' => '970216474@qq.com' }
-  #s.source           = { :git => 'https://github.com/hubin97/AppStart.git', :tag => s.version.to_s }
-  s.source = { :path => '../' }
+  #s.source = { :path => '../' }
+  s.source           = { :git => 'https://github.com/hubin97/AppStart.git', :tag => s.version.to_s }
   
   # s.social_media_url = 'https://twitter.com/<TWITTER_USERNAME>'
   
