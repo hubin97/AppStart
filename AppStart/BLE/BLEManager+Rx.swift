@@ -1,9 +1,9 @@
 //
 //  BLEManager+Rx.swift
-//  HBSwiftKit_Example
+//  AppStart
 //
 //  Created by hubin.h on 2024/12/2.
-//  Copyright © 2025 Hubin_Huang. All rights reserved.
+//  Copyright © 2025 hubin.h. All rights reserved.
 
 import Foundation
 import RxCocoa

@@ -1,9 +1,9 @@
 //
 //  Extension+Math.swift
-//  LuteBase
+//  AppStart
 //
 //  Created by hubin.h on 2024/11/7.
-//  Copyright © 2025 Hubin_Huang. All rights reserved.
+//  Copyright © 2025 hubin.h. All rights reserved.
 
 import Foundation
 

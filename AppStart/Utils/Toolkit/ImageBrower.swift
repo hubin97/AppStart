@@ -1,9 +1,9 @@
 //
 //  ImageBrower.swift
-//  HBSwiftKitDemo
+//  AppStartDemo
 //
 //  Created by hubin.h@wingto.cn on 2020/8/21.
-//  Copyright © 2020 WingTo. All rights reserved.
+//  Copyright © 2025 hubin.h. All rights reserved.
 
 import UIKit
 import Foundation

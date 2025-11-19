@@ -1,9 +1,9 @@
 //
 //  Extension+ViewController.swift
-//  HBSwiftKit
+//  AppStart
 //
-//  Created by Hubin_Huang on 2022/5/31.
-//  Copyright © 2020 云图数字. All rights reserved.
+//  Created by hubin.h on 2022/5/31.
+//  Copyright © 2025 hubin.h. All rights reserved.
 
 import UIKit
 

@@ -3,7 +3,7 @@
 //  AppStart
 //
 //  Created by hubin.h on 2025/11/10.
-//  Copyright © 2025 路特创新. All rights reserved.
+//  Copyright © 2025 hubin.h. All rights reserved.
 
 import Foundation
 import Moya

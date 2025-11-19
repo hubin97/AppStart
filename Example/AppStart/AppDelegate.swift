@@ -3,7 +3,7 @@
 //  AppStart
 //
 //  Created by hubin.h on 06/03/2025.
-//  Copyright (c) 2025 hubin.h. All rights reserved.
+//  Copyright © 2025 hubin.h. All rights reserved.
 //
 
 import UIKit

@@ -1,9 +1,9 @@
 //
 //  Themes.swift
-//  Momcozy
+//  AppStart
 //
 //  Created by hubin.h on 2023/12/6.
-//  Copyright © 2025 Hubin_Huang. All rights reserved.
+//  Copyright © 2025 hubin.h. All rights reserved.
 
 import Foundation
 

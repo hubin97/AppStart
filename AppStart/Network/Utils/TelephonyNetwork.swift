@@ -1,9 +1,9 @@
 //
 //  TelephonyNetwork.swift
-//  Momcozy
+//  AppStart
 //
 //  Created by hubin.h on 2024/9/10.
-//  Copyright © 2025 Hubin_Huang. All rights reserved.
+//  Copyright © 2025 hubin.h. All rights reserved.
 //
 
 import Foundation

@@ -1,9 +1,9 @@
 //
 //  CollectionItem.swift
-//  Momcozy
+//  AppStart
 //
 //  Created by hubin.h on 2024/11/15.
-//  Copyright © 2025 Hubin_Huang. All rights reserved.
+//  Copyright © 2025 hubin.h. All rights reserved.
 
 import Foundation
 

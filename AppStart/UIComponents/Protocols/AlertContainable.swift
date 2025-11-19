@@ -1,9 +1,9 @@
 //
 //  AlertContainable.swift
-//  Momcozy
+//  AppStart
 //
 //  Created by hubin.h on 2025/6/5.
-//  Copyright © 2025 路特创新. All rights reserved.
+//  Copyright © 2025 hubin.h. All rights reserved.
 
 import Foundation
 

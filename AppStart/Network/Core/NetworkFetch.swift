@@ -1,9 +1,9 @@
 //
 //  NetworkRequest.swift
-//  HBSwiftKit_Example
+//  AppStart
 //
-//  Created by Hubin_Huang on 2022/3/28.
-//  Copyright © 2020 云图数字. All rights reserved.
+//  Created by hubin.h on 2022/3/28.
+//  Copyright © 2025 hubin.h. All rights reserved.
 
 // Moya文档 https://github.com/Moya/Moya/tree/master/docs/Examples
 // Moya解析 https://dirtmelon.github.io/posts/Moya/

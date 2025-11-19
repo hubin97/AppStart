@@ -1,9 +1,9 @@
 //
 //  QRGenerator.swift
-//  HBSwiftKit
+//  AppStart
 //
-//  Created by Hubin_Huang on 2021/3/11.
-//  Copyright © 2020 Wingto. All rights reserved.
+//  Created by hubin.h on 2021/3/11.
+//  Copyright © 2025 hubin.h. All rights reserved.
 
 import Foundation
 import AVFoundation

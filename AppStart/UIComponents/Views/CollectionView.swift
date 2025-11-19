@@ -1,6 +1,6 @@
 //
 //  CollectionView.swift
-//  Momcozy
+//  AppStart
 //
 //  Created by hubin.h on 2024/8/20.
 //  Copyright © 2020 路特创新. All rights reserved.

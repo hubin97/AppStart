@@ -1,9 +1,9 @@
 //
 //  Extension+PromiseKit.swift
-//  Momcozy
+//  AppStart
 //
 //  Created by hubin.h on 2025/9/28.
-//  Copyright © 2025 路特创新. All rights reserved.
+//  Copyright © 2025 hubin.h. All rights reserved.
 
 import Foundation
 import PromiseKit
