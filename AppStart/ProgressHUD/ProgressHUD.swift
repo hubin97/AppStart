@@ -9,6 +9,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+/// `Fork 修改日志`
+/// 1. 修正hud显示移除异常问题
+/// 2. 补充自定义视图方法 func custom()
+
 import UIKit
 
 public class ProgressHUD: UIView {
