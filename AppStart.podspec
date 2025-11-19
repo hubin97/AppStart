@@ -35,14 +35,27 @@ Pod::Spec.new do |s|
   
   # 子模块：ProgressHUD
   s.subspec 'ProgressHUD' do |hud|
-    hud.source_files = 'AppStart/ProgressHUD/**/*.{swift}'
+    hud.source_files = 'AppStart/ProgressHUD/**/*.swift'
   end
   
   # 子模块：Base
   s.subspec 'Base' do |base|
-    base.source_files = 'AppStart/Base/**/*.swift'
-    base.dependency 'AppStart/Sources'
-    base.dependency 'SnapKit'
+    base.subspec 'Global' do |global|
+      global.source_files = 'AppStart/Base/Global/*.swift'
+    end
+    
+    base.subspec 'Extension' do |ex|
+      ex.source_files = 'AppStart/Base/Extension/*.swift'
+      ex.dependency 'AppStart/Base/Global'
+    end
+    
+    base.subspec 'Core' do |core|
+      core.source_files = 'AppStart/Base/Core/*.swift'
+      core.dependency 'AppStart/Sources'
+      core.dependency 'AppStart/Base/Global'
+      core.dependency 'AppStart/Base/Extension'
+      core.dependency 'SnapKit'
+    end
   end
   
   # 子模块：UIComponents
@@ -50,6 +63,7 @@ Pod::Spec.new do |s|
     ui.subspec 'Views' do |view|
       view.source_files = 'AppStart/UIComponents/Views/*.swift'
       view.dependency 'AppStart/Base'
+      view.dependency 'AppStart/Utils/Toolkit'
       view.dependency 'RxRelay'
       view.dependency 'PromiseKit'
       view.dependency 'Toast-Swift'
@@ -57,6 +71,7 @@ Pod::Spec.new do |s|
       view.dependency 'DZNEmptyDataSet'
       view.dependency 'MJRefresh'
     end
+    
     ui.subspec 'Protocols' do |pr|
       pr.source_files = 'AppStart/UIComponents/Protocols/*.swift'
       pr.dependency 'AppStart/Base'
@@ -93,7 +108,7 @@ Pod::Spec.new do |s|
     end
     
     utils.subspec 'Reactive' do |rx|
-      rx.source_files = 'AppStart/Utils/Reactive/**/*.{swift}'
+      rx.source_files = 'AppStart/Utils/Reactive/**/*.swift'
       rx.dependency 'RxSwift'
       rx.dependency 'RxRelay'
       rx.dependency 'RxGesture'

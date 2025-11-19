@@ -48,12 +48,12 @@ open class ViewController: UIViewController, Navigatable, NaviBarDelegate {
             interactivePopGestureRecognizer.addTarget(self, action: #selector(handlePopGesture(_:)))
         }
         
-        if LocalizedUtils.isRTL() {
-            self.view.semanticContentAttribute = .forceRightToLeft
-        } else {
-            self.view.semanticContentAttribute = .forceLeftToRight
-        }
-        
+//        if LocalizedUtils.isRTL() {
+//            self.view.semanticContentAttribute = .forceRightToLeft
+//        } else {
+//            self.view.semanticContentAttribute = .forceLeftToRight
+//        }
+
         self.setupLayout()
         self.bindViewModel()
     }
