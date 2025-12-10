@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		09E0DD572F6C383B5B21AFB9 /* Pods_AppStart_Tests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E696DAA9AEB63276A8FA4C75 /* Pods_AppStart_Tests.framework */; };
+		18DC6A252EE964A100564962 /* Quick_Nimble常规使用指南.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 18DC6A242EE964A100564962 /* Quick_Nimble常规使用指南.pdf */; };
 		18F407352EBCAB0B00341B71 /* swiftgen_pod_setup.sh in Resources */ = {isa = PBXBuildFile; fileRef = 18F407342EBCAB0B00341B71 /* swiftgen_pod_setup.sh */; };
 		607FACD61AFB9204008FA782 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607FACD51AFB9204008FA782 /* AppDelegate.swift */; };
 		607FACD81AFB9204008FA782 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607FACD71AFB9204008FA782 /* ViewController.swift */; };
@@ -30,6 +31,7 @@
 
 /* Begin PBXFileReference section */
 		139DD26CB21891EE30DF0C5C /* Pods-AppStart_Example.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-AppStart_Example.debug.xcconfig"; path = "Target Support Files/Pods-AppStart_Example/Pods-AppStart_Example.debug.xcconfig"; sourceTree = "<group>"; };
+		18DC6A242EE964A100564962 /* Quick_Nimble常规使用指南.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "Quick_Nimble常规使用指南.pdf"; sourceTree = "<group>"; };
 		18F407342EBCAB0B00341B71 /* swiftgen_pod_setup.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; name = swiftgen_pod_setup.sh; path = ../swiftgen_pod_setup.sh; sourceTree = SOURCE_ROOT; };
 		1F08F246390A576F4BC02810 /* Pods-AppStart_Example.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-AppStart_Example.release.xcconfig"; path = "Target Support Files/Pods-AppStart_Example/Pods-AppStart_Example.release.xcconfig"; sourceTree = "<group>"; };
 		607FACD01AFB9204008FA782 /* AppStart_Example.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AppStart_Example.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -71,6 +73,21 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		18DC6A222EE9648700564962 /* Fixtures */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Fixtures;
+			sourceTree = "<group>";
+		};
+		18DC6A232EE9649000564962 /* Docs */ = {
+			isa = PBXGroup;
+			children = (
+				18DC6A242EE964A100564962 /* Quick_Nimble常规使用指南.pdf */,
+			);
+			path = Docs;
+			sourceTree = "<group>";
+		};
 		5FEB49F5D9560EBCB80DD21A /* Pods */ = {
 			isa = PBXGroup;
 			children = (
@@ -130,6 +147,8 @@
 			isa = PBXGroup;
 			children = (
 				607FACEB1AFB9204008FA782 /* Tests.swift */,
+				18DC6A232EE9649000564962 /* Docs */,
+				18DC6A222EE9648700564962 /* Fixtures */,
 				607FACE91AFB9204008FA782 /* Supporting Files */,
 			);
 			path = Tests;
@@ -192,6 +211,7 @@
 				607FACE11AFB9204008FA782 /* Sources */,
 				607FACE21AFB9204008FA782 /* Frameworks */,
 				607FACE31AFB9204008FA782 /* Resources */,
+				7009A73E767B271C61AAD2BE /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -262,12 +282,43 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				18DC6A252EE964A100564962 /* Quick_Nimble常规使用指南.pdf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		7009A73E767B271C61AAD2BE /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-AppStart_Tests/Pods-AppStart_Tests-frameworks.sh",
+				"${BUILT_PRODUCTS_DIR}/CwlCatchException/CwlCatchException.framework",
+				"${BUILT_PRODUCTS_DIR}/CwlCatchExceptionSupport/CwlCatchExceptionSupport.framework",
+				"${BUILT_PRODUCTS_DIR}/CwlMachBadInstructionHandler/CwlMachBadInstructionHandler.framework",
+				"${BUILT_PRODUCTS_DIR}/CwlPosixPreconditionTesting/CwlPosixPreconditionTesting.framework",
+				"${BUILT_PRODUCTS_DIR}/CwlPreconditionTesting/CwlPreconditionTesting.framework",
+				"${BUILT_PRODUCTS_DIR}/Nimble/Nimble.framework",
+				"${BUILT_PRODUCTS_DIR}/Quick/Quick.framework",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/CwlCatchException.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/CwlCatchExceptionSupport.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/CwlMachBadInstructionHandler.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/CwlPosixPreconditionTesting.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/CwlPreconditionTesting.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/Nimble.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/Quick.framework",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-AppStart_Tests/Pods-AppStart_Tests-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
 		70B9F1C45EE47481531DA2AB /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
