@@ -28,6 +28,12 @@ public class NaviBar: UIView {
         }
     }
     
+    public var textColor: UIColor = .black {
+        didSet {
+            titleView.titleLabel.textColor = textColor
+        }
+    }
+    
     /// 是否启用高斯模糊背景
     public var isBlurEnabled: Bool {
         get { !blurView.isHidden }
@@ -168,15 +174,91 @@ public class NaviBar: UIView {
 }
 
 // MARK: - private mothods
-extension NaviBar { 
+extension NaviBar {
+    
+    /// 更新返回按钮图标
+    /// - Parameter isDark: 是否为深色主题
+    private func updateBackButtonIcon(isDark: Bool) {
+        // 优先处理被设置到 leftView 上的按钮（例如 WKWebController 的 backButton 或 naviLeftView 内的按钮）
+        if let leftContainer = leftView {
+            // 如果 leftView 本身是按钮
+            if let leftButton = leftContainer as? UIButton {
+                let iconImage: UIImage? = isDark
+                    ? Asset.iconLeftWhite.image.adaptRTL
+                    : Asset.iconLeftBlack.image.adaptRTL
+                leftButton.setImage(iconImage, for: .normal)
+                leftButton.tintColor = nil
+                return
+            }
+
+            // 如果 leftView 是一个容器视图（例如 WKWebController.naviLeftView），遍历其中的按钮
+            for sub in leftContainer.subviews {
+                if let button = sub as? UIButton,
+                   let image = button.image(for: .normal) {
+                    if image == Asset.iconLeftBlack.image.adaptRTL || image == Asset.iconLeftWhite.image.adaptRTL {
+                        // 返回按钮：黑/白互切
+                        let icon = isDark ? Asset.iconLeftWhite.image.adaptRTL : Asset.iconLeftBlack.image.adaptRTL
+                        button.setImage(icon, for: .normal)
+                        button.tintColor = nil
+                    } else if image == Asset.iconCloseBlack.image.adaptRTL || image == Asset.iconCloseWhite.image.adaptRTL {
+                        // 关闭按钮：黑/白互切
+                        let icon = isDark ? Asset.iconCloseWhite.image.adaptRTL : Asset.iconCloseBlack.image.adaptRTL
+                        button.setImage(icon, for: .normal)
+                        button.tintColor = nil
+                    }
+                }
+            }
+            // 已处理完 leftView 容器中的按钮
+        }
+
+        // 兜底：如果还在用 NaviBar 自己的 backButton
+        if backButton === leftView {
+            let iconImage: UIImage? = isDark
+                ? Asset.iconLeftWhite.image.adaptRTL
+                : Asset.iconLeftBlack.image.adaptRTL
+            backButton.setImage(iconImage, for: .normal)
+            backButton.tintColor = nil // 确保使用原始图标颜色
+        }
+    }
+    
+    /// 递归更新视图中的按钮图标（主要用于其它自定义按钮，使用 template 渲染）
+    private func updateButtonIconsInView(_ view: UIView?, textColor: UIColor) {
+        guard let view = view else { return }
+        
+        // 跳过 NaviBar 自己的 backButton（已在 updateBackButtonIcon 处理）
+        if view === backButton { return }
+        
+        if let button = view as? UIButton,
+           let image = button.image(for: .normal),
+           image.renderingMode == .alwaysTemplate {
+            button.tintColor = textColor
+        }
+        
+        for subview in view.subviews {
+            updateButtonIconsInView(subview, textColor: textColor)
+        }
+    }
 }
 
 // MARK: - call backs
-extension NaviBar { 
+extension NaviBar {
+    
+    /// 更新导航栏按钮图标以适配主题
+    /// - Parameters:
+    ///   - isDark: 是否为深色主题
+    ///   - textColor: 文本颜色（用于 template 模式的图标）
+    public func updateIcons(isDark: Bool, textColor: UIColor) {
+        // 更新返回 / 关闭 等左侧按钮图标
+        updateBackButtonIcon(isDark: isDark)
+        
+        // 更新自定义左右视图中的其它按钮图标
+        updateButtonIconsInView(leftView, textColor: textColor)
+        updateButtonIconsInView(rightView, textColor: textColor)
+    }
 }
 
 // MARK: - delegate or data source
-extension NaviBar { 
+extension NaviBar {
     
     class LTTitleView: UIView {
         

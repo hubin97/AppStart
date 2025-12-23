@@ -60,6 +60,11 @@ Pod::Spec.new do |s|
   
   # 子模块：UIComponents
   s.subspec 'UIComponents' do |ui|
+    ui.subspec 'AlertView' do |view|
+      view.source_files = 'AppStart/UIComponents/AlertView/*.swift'
+      view.dependency 'AppStart/Base'
+    end
+    
     ui.subspec 'Views' do |view|
       view.source_files = 'AppStart/UIComponents/Views/*.swift'
       view.dependency 'AppStart/Base'
