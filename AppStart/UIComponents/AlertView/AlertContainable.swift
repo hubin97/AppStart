@@ -111,13 +111,16 @@ extension AlertContainable where Self: UIView {
     // 展示
     public func show(in parentView: UIView? = nil) {
         guard let superview = parentView ?? UIApplication.shared.windows.first(where: \.isKeyWindow) else { return }
-        
+        self.display(in: superview)
+    }
+    
+    func display(in parentView: UIView) {
         // 布局基础视图
         setupBaseViews(in: parentView)
         // 布局额外视图
         setupAdditionalViews()
         
-        superview.addSubview(self)
+        parentView.addSubview(self)
 
         self.onStateChange?(.willShow)
         self.stateDidChange(to: .willShow)
