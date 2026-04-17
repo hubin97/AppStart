@@ -118,7 +118,10 @@ extension AlertQueueCoordinator {
     }
 
     private func showAlert(_ alert: (AlertContainable & AlertQueueable & UIView)) {
+        // 保留 alert 上已设置的 onStateChange（如 DeviceDiscoveryManager 的埋点），再追加队列逻辑，避免覆盖导致回调不执行
+        let existingOnStateChange = alert.onStateChange
         alert.onStateChange = { [weak self] state in
+            existingOnStateChange?(state)
             guard let self = self else { return }
             if state == .didHide {
                 self.presenting = nil

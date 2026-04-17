@@ -22,6 +22,7 @@ private struct AlertContainableKeys {
     static var onStateChange = 0
     static var isMaskEnabled = 0
     static var usingSpringWithDamping = 0
+    static var maskView = 0
 }
 
 public protocol AlertContainable: AnyObject {
@@ -53,6 +54,16 @@ public protocol AlertContainable: AnyObject {
 }
 
 extension AlertContainable where Self: UIView {
+
+    /// 内部持有的蒙层视图，避免重复叠加
+    private var _maskView: UIView? {
+        get {
+            objc_getAssociatedObject(self, &AlertContainableKeys.maskView) as? UIView
+        }
+        set {
+            objc_setAssociatedObject(self, &AlertContainableKeys.maskView, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        }
+    }
 
     public var onStateChange: ((AlertState) -> Void)? {
         get {
@@ -87,12 +98,18 @@ extension AlertContainable where Self: UIView {
         self.frame = superview.bounds
         self.alpha = 0
 
+        // 每次展示前，先清理旧的蒙层，避免重复叠加
+        _maskView?.removeFromSuperview()
+
         if isMaskEnabled {
             let maskView = UIView()
             maskView.backgroundColor = UIColor.black.withAlphaComponent(0.5)
             maskView.frame = self.bounds
             maskView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
             addSubview(maskView)
+            _maskView = maskView
+        } else {
+            _maskView = nil
         }
 
         addSubview(containerView)

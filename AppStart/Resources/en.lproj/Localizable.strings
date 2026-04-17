@@ -15,7 +15,7 @@
 
 "string_net_unavailable" = "Network unavailable. Please check your connection.";
 "string_net_timeout" = "Request timed out. Please try again later.";
-"string_net_ssl_untrusted" = "Untrusted network environment. Please switch networks and try again.";
+"string_net_ssl_untrusted" =  "Couldn't establish a secure connection. Check that the date and time are correct, or try another network.";
 "string_net_connect_failed" = "Unable to connect to the server. Please try again later.";
 "string_net_cancelled" = "Request was cancelled.";
 "string_net_unauthorized" = "Session expired. Please log in again.";
