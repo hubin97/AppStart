@@ -45,8 +45,8 @@ public class NaviBar: UIView {
 
     weak var delegate: NaviBarDelegate?
         
-    public var leftView: UIView?
-    public var rightView: UIView?
+    public private(set) var leftView: UIView?
+    public private(set) var rightView: UIView?
 
     public lazy var backButton: UIButton = {
         let _backButton = UIButton(type: .custom)

@@ -212,9 +212,9 @@ public extension ProgressHUD {
 		}
 	}
     
-    class func custom(_ view: UIView, interaction: Bool = true, delay: TimeInterval? = nil) {
+    class func custom(_ view: UIView, interaction: Bool = true, delay: TimeInterval? = nil, hudSize: CGSize? = nil) {
         DispatchQueue.main.async {
-            shared.customView(view: view, interaction: interaction, delay: delay)
+            shared.customView(view: view, interaction: interaction, delay: delay, hudSize: hudSize)
         }
     }
 }

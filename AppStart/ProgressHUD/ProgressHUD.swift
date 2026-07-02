@@ -42,7 +42,7 @@ public class ProgressHUD: UIView {
 	var marginSize: CGFloat = 30
 
 	var viewBackground: UIView?
-	var toolbarHUD: UIToolbar?
+	var toolbarHUD: UIView?
 	var labelStatus: UILabel?
 
 	var viewProgress: ProgressView?
@@ -51,6 +51,7 @@ public class ProgressHUD: UIView {
 	var viewAnimation: UIView?
 
     var viewCustomView: UIView?
+    var isCustomHUD = false
     
 	var animationType	= AnimationType.activityIndicator
 	var animationSymbol	= "sun.max"
@@ -94,6 +95,7 @@ extension ProgressHUD {
 	func progress(text: String?, value: CGFloat, interaction: Bool) {
 
 		removeDelayTimer()
+		isCustomHUD = false
 
 		setupWindow()
 		setupBackground(interaction)
@@ -120,6 +122,7 @@ extension ProgressHUD {
 	func liveIcon(text: String?, icon: LiveIcon, interaction: Bool, delay: TimeInterval?) {
 
 		removeDelayTimer()
+		isCustomHUD = false
 
 		setupWindow()
 		setupBackground(interaction)
@@ -147,6 +150,7 @@ extension ProgressHUD {
 	func staticImage(text: String?, image: UIImage?, interaction: Bool, delay: TimeInterval?) {
 
 		removeDelayTimer()
+		isCustomHUD = false
 
 		setupWindow()
 		setupBackground(interaction)
@@ -174,6 +178,7 @@ extension ProgressHUD {
 	func animate(text: String?, interaction: Bool) {
 
 		removeDelayTimer()
+		isCustomHUD = false
 
 		setupWindow()
 		setupBackground(interaction)
@@ -197,27 +202,51 @@ extension ProgressHUD {
 // MARK: - CustomView
 extension ProgressHUD {
     
-    func customView(view: UIView, interaction: Bool, delay: TimeInterval?) {
+    func customView(view: UIView, interaction: Bool, delay: TimeInterval?, hudSize: CGSize? = nil) {
         
         removeDelayTimer()
+        isCustomHUD = true
         
         setupWindow()
         setupBackground(interaction)
         setupToolbar()
-        //setupStatus(text)
         
         removeLiveIcon()
         removeStaticImage()
         removeProgressView()
         removeAnimationView()
-        
-        setupCustomView(view)
-        setupDelayTimer(nil, delay)
-        
-        setupSizes(nil, false)
+        removeCustomView()
+
+        let contentSize = resolveCustomContentSize(view: view, hudSize: hudSize)
+        let width = ceil(contentSize.width)
+        let height = ceil(contentSize.height)
+
+        view.autoresizingMask = []
+        view.translatesAutoresizingMaskIntoConstraints = true
+        toolbarHUD?.addSubview(view)
+        view.frame = CGRect(x: 0, y: 0, width: width, height: height)
+
+        if let delay {
+            setupDelayTimer(nil, delay)
+        }
+
+        let center = CGPoint(x: width / 2, y: height / 2)
+        setupSizes(width, height, center, .zero)
         setupNotifications()
         setupPosition()
         displayHUD()
+    }
+
+    /// custom 未传有效尺寸时的隐式回落值：mediaSize + 2 * marginSize（默认 70 + 60 = 130）
+    private func resolveCustomContentSize(view: UIView, hudSize: CGSize?) -> CGSize {
+        if let hudSize, hudSize.width > 0, hudSize.height > 0 {
+            return hudSize
+        }
+        if view.bounds.width > 0, view.bounds.height > 0 {
+            return view.bounds.size
+        }
+        let side = mediaSize + 2 * marginSize
+        return CGSize(width: side, height: side)
     }
 }
 
@@ -300,13 +329,13 @@ extension ProgressHUD {
 	}
 
 	private func setupToolbar() {
-		if (toolbarHUD == nil) {
-			toolbarHUD = UIToolbar(frame: CGRect.zero)
-			toolbarHUD?.isTranslucent = true
-			toolbarHUD?.clipsToBounds = true
-			toolbarHUD?.layer.cornerRadius = 10
-			toolbarHUD?.layer.masksToBounds = true
-			viewBackground?.addSubview(toolbarHUD!)
+		if toolbarHUD == nil {
+			let panel = UIView(frame: .zero)
+			panel.clipsToBounds = true
+			panel.layer.cornerRadius = 10
+			panel.layer.masksToBounds = true
+			viewBackground?.addSubview(panel)
+			toolbarHUD = panel
 		}
 
 		toolbarHUD?.backgroundColor = colorHUD
@@ -419,20 +448,29 @@ extension ProgressHUD {
     }
     
     private func setupCustomView(_ view: UIView) {
-        if (viewCustomView == nil) {
-            // Set the custom view size to the same as setupSizesTextNone
-            let width = mediaSize + 2 * marginSize
-            let height = mediaSize + 2 * marginSize
+        let width: CGFloat
+        let height: CGFloat
+        if view.bounds.width > 0, view.bounds.height > 0 {
+            width = view.bounds.width
+            height = view.bounds.height
+        } else {
+            width = mediaSize + 2 * marginSize
+            height = mediaSize + 2 * marginSize
+        }
+        if viewCustomView == nil {
             viewCustomView = UIView(frame: CGRect(x: 0, y: 0, width: width, height: height))
+        } else {
+            viewCustomView?.frame = CGRect(x: 0, y: 0, width: width, height: height)
         }
 
         guard let viewCustomView = viewCustomView else { return }
 
-        if (viewCustomView.superview == nil) {
+        if viewCustomView.superview == nil {
             toolbarHUD?.addSubview(viewCustomView)
         }
+        viewCustomView.subviews.forEach { $0.removeFromSuperview() }
         viewCustomView.addSubview(view)
-        view.center = viewCustomView.center
+        view.frame = CGRect(x: 0, y: 0, width: width, height: height)
     }
 }
 
@@ -540,12 +578,19 @@ extension ProgressHUD {
 	}
 
 	private func setupSizes(_ width: CGFloat, _ height: CGFloat, _ center: CGPoint, _ rect: CGRect) {
-		toolbarHUD?.bounds = CGRect(x: 0, y: 0, width: ceil(width), height: ceil(height))
+		let w = ceil(width)
+		let h = ceil(height)
+		guard let toolbar = toolbarHUD else { return }
+
+		toolbar.transform = .identity
+		toolbar.bounds = CGRect(x: 0, y: 0, width: w, height: h)
+		toolbar.frame.size = CGSize(width: w, height: h)
 
 		viewProgress?.center = center
 		viewLiveIcon?.center = center
 		viewStaticImage?.center = center
 		viewAnimation?.center = center
+        viewCustomView?.center = center
 
 		labelStatus?.frame = rect
 	}
@@ -614,22 +659,12 @@ extension ProgressHUD {
 extension ProgressHUD {
 
 	private func displayHUD() {
-		if (alpha == 0) {
-//			alpha = 1
-//			toolbarHUD?.alpha = 0
-//			toolbarHUD?.transform = CGAffineTransform(scaleX: 1.4, y: 1.4)
-//
-//			UIView.animate(withDuration: 0.15, delay: 0, options: [.allowUserInteraction, .curveEaseIn], animations: { [self] in
-//				toolbarHUD?.transform = CGAffineTransform(scaleX: 1/1.4, y: 1/1.4)
-//				toolbarHUD?.alpha = 1
-//			}, completion: nil)
-            
-            // FIXME: 移除缩放动效
-            alpha = 1
-            toolbarHUD?.center = CGPoint(x: main.bounds.size.width / 2, y: main.bounds.size.height / 2)
-            toolbarHUD?.transform = CGAffineTransform(scaleX: 1/1.4, y: 1/1.4)
-            toolbarHUD?.alpha = 1
-		}
+		alpha = 1
+		guard let toolbar = toolbarHUD else { return }
+		toolbar.center = CGPoint(x: main.bounds.size.width / 2, y: main.bounds.size.height / 2)
+		// custom 不再套用 1/1.4 缩放，否则视觉尺寸会被压缩且与 hudSize 不一致
+		toolbar.transform = isCustomHUD ? .identity : CGAffineTransform(scaleX: 1/1.4, y: 1/1.4)
+		toolbar.alpha = 1
 	}
 
 	func dismissHUD() {
@@ -660,6 +695,7 @@ extension ProgressHUD {
 	private func destroyHUD() {
 		removeDelayTimer()
 		removeNotifications()
+		isCustomHUD = false
 
 		removeLiveIcon()
 		removeStaticImage()

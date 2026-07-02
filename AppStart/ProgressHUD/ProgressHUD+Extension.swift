@@ -7,9 +7,26 @@
 
 import Foundation
 
+// MARK: - 外部集成 Lottie 示例
+//
+// 本库不内置 Lottie 依赖。业务工程自行 `pod 'lottie-ios'` 后，
+// 新建 `ProgressHUD+Lottie.swift`，在 extension 里封装即可：
+//
+// ```swift
+// import UIKit
+// import Lottie
+// import AppStart
+//
+// // 简易：LottieAnimationView 直接交给 ProgressHUD.custom
+// ProgressHUD.showSimpleLottieLoading(named: "loading")
+//
+// // 卡片：自定义 LottieLoadingCardView（白底圆角 + 文案）
+// ProgressHUD.showLottieLoading(named: "loading", message: "加载中...")
+// ProgressHUD.dismiss()
+// ```
+
 /// ProgressHUD扩展
 extension ProgressHUD {
-    
     /// 计算显示时长
     private static func duration(_ content: String, minDuration: TimeInterval = 1.0) -> TimeInterval {
         return max(Double(content.count) * 0.06 + 0.5, 1)
@@ -31,7 +48,7 @@ extension ProgressHUD {
             }
         }
     }
-    
+
     /// 显示进度
     /// - Parameters:
     ///   - text: 文本
