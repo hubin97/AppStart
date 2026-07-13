@@ -12,6 +12,7 @@
 /// `Fork 修改日志`
 /// 1. 修正hud显示移除异常问题
 /// 2. 补充自定义视图方法 func custom()
+/// 3. custom 统一走 setupCustomView，清理 toolbar 子视图，避免叠层
 
 import UIKit
 
@@ -100,12 +101,8 @@ extension ProgressHUD {
 		setupWindow()
 		setupBackground(interaction)
 		setupToolbar()
+		clearToolbarContent()
 		setupStatus(text)
-
-		removeLiveIcon()
-		removeStaticImage()
-		removeAnimationView()
-        removeCustomView()
 
 		setupProgressView(value)
 
@@ -127,13 +124,9 @@ extension ProgressHUD {
 		setupWindow()
 		setupBackground(interaction)
 		setupToolbar()
+		clearToolbarContent()
 		setupStatus(text)
 
-		removeStaticImage()
-		removeProgressView()
-		removeAnimationView()
-        removeCustomView()
-        
 		setupLiveIcon(icon)
 		setupDelayTimer(text, delay)
 
@@ -155,13 +148,9 @@ extension ProgressHUD {
 		setupWindow()
 		setupBackground(interaction)
 		setupToolbar()
+		clearToolbarContent()
 		setupStatus(text)
 
-		removeLiveIcon()
-		removeProgressView()
-		removeAnimationView()
-        removeCustomView()
-        
 		setupStaticImage(image)
 		setupDelayTimer(text, delay)
 
@@ -183,13 +172,9 @@ extension ProgressHUD {
 		setupWindow()
 		setupBackground(interaction)
 		setupToolbar()
+		clearToolbarContent()
 		setupStatus(text)
 
-		removeLiveIcon()
-        removeCustomView()
-		removeStaticImage()
-		removeProgressView()
-        
 		setupAnimationView()
 
 		setupSizes(text, true)
@@ -209,13 +194,8 @@ extension ProgressHUD {
         
         setupWindow()
         setupBackground(interaction)
-        setupToolbar()
-        
-        removeLiveIcon()
-        removeStaticImage()
-        removeProgressView()
-        removeAnimationView()
-        removeCustomView()
+        setupToolbarForCustom()
+        clearToolbarContent()
 
         let contentSize = resolveCustomContentSize(view: view, hudSize: hudSize)
         let width = ceil(contentSize.width)
@@ -223,8 +203,7 @@ extension ProgressHUD {
 
         view.autoresizingMask = []
         view.translatesAutoresizingMaskIntoConstraints = true
-        toolbarHUD?.addSubview(view)
-        view.frame = CGRect(x: 0, y: 0, width: width, height: height)
+        setupCustomView(view, width: width, height: height)
 
         if let delay {
             setupDelayTimer(nil, delay)
@@ -235,6 +214,28 @@ extension ProgressHUD {
         setupNotifications()
         setupPosition()
         displayHUD()
+    }
+
+    private func setupToolbarForCustom() {
+        if toolbarHUD == nil {
+            let panel = UIView(frame: .zero)
+            panel.clipsToBounds = true
+            panel.layer.cornerRadius = 10
+            panel.layer.masksToBounds = true
+            viewBackground?.addSubview(panel)
+            toolbarHUD = panel
+        }
+        toolbarHUD?.backgroundColor = .clear
+    }
+
+    private func clearToolbarContent() {
+        toolbarHUD?.subviews.forEach { $0.removeFromSuperview() }
+        labelStatus = nil
+        viewProgress = nil
+        viewLiveIcon = nil
+        viewStaticImage = nil
+        viewAnimation = nil
+        viewCustomView = nil
     }
 
     /// custom 未传有效尺寸时的隐式回落值：mediaSize + 2 * marginSize（默认 70 + 60 = 130）
@@ -447,23 +448,14 @@ extension ProgressHUD {
         viewCustomView = nil
     }
     
-    private func setupCustomView(_ view: UIView) {
-        let width: CGFloat
-        let height: CGFloat
-        if view.bounds.width > 0, view.bounds.height > 0 {
-            width = view.bounds.width
-            height = view.bounds.height
-        } else {
-            width = mediaSize + 2 * marginSize
-            height = mediaSize + 2 * marginSize
-        }
+    private func setupCustomView(_ view: UIView, width: CGFloat, height: CGFloat) {
         if viewCustomView == nil {
             viewCustomView = UIView(frame: CGRect(x: 0, y: 0, width: width, height: height))
         } else {
             viewCustomView?.frame = CGRect(x: 0, y: 0, width: width, height: height)
         }
 
-        guard let viewCustomView = viewCustomView else { return }
+        guard let viewCustomView else { return }
 
         if viewCustomView.superview == nil {
             toolbarHUD?.addSubview(viewCustomView)
