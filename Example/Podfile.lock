@@ -21,9 +21,7 @@ PODS:
     - AppStart/Base/Global
   - AppStart/Base/Global (0.1.4)
   - AppStart/BLE (0.1.4):
-    - "NSObject+Rx"
-    - RxCocoa
-    - RxSwift
+    - AppStart/Utils/Logger
   - AppStart/Network (0.1.4):
     - AppStart/Network/Core (= 0.1.4)
     - AppStart/Network/Utils (= 0.1.4)
@@ -115,8 +113,6 @@ PODS:
     - Alamofire (~> 5.0)
   - Nimble (13.8.0):
     - CwlPreconditionTesting (~> 2.2.0)
-  - "NSObject+Rx (5.2.2)":
-    - RxSwift (~> 6.2)
   - ObjectMapper (4.4.2)
   - PromiseKit (8.2.0):
     - PromiseKit/CorePromise (= 8.2.0)
@@ -159,7 +155,6 @@ SPEC REPOS:
     - MJRefresh
     - Moya
     - Nimble
-    - "NSObject+Rx"
     - ObjectMapper
     - PromiseKit
     - Quick
@@ -176,7 +171,7 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   Alamofire: 7193b3b92c74a07f85569e1a6c4f4237291e7496
-  AppStart: 4a43929d5c61fa9e7432ecc800f977cbe3e5c62f
+  AppStart: 8fe554dd585a9c253d34f25ef5eaeeeca1addc93
   CocoaLumberjack: 5644158777912b7de7469fa881f8a3f259c2512a
   CwlCatchException: 7acc161b299a6de7f0a46a6ed741eae2c8b4d75a
   CwlCatchExceptionSupport: 54ccab8d8c78907b57f99717fb19d4cc3bce02dc
@@ -188,7 +183,6 @@ SPEC CHECKSUMS:
   MJRefresh: ff9e531227924c84ce459338414550a05d2aea78
   Moya: 138f0573e53411fb3dc17016add0b748dfbd78ee
   Nimble: 84982ec98b5dfc0ffe9ae2ed4c0b2fc57807c2d5
-  "NSObject+Rx": 61cf1f7306a73dcef8b36649198af0813ec18dfd
   ObjectMapper: e6e4d91ff7f2861df7aecc536c92d8363f4c9677
   PromiseKit: 74e6ab5894856b4762fef547055c809bca91d440
   Quick: b8bec97cd4b9f21da0472d45580f763b801fc353

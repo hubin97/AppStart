@@ -140,12 +140,10 @@ Pod::Spec.new do |s|
     end
   end
   
-  # 子模块：BLE
-  s.subspec 'BLE' do |ble|
-    ble.source_files = 'AppStart/BLE/**/*.swift'
-    ble.dependency 'RxSwift'
-    ble.dependency 'RxCocoa'
-    ble.dependency 'NSObject+Rx'
+  # 子模块：Ble
+  s.subspec 'Ble' do |ble|
+    ble.source_files = 'AppStart/Ble/**/*.swift'
+    ble.dependency 'AppStart/Utils/Logger'
   end
   
   # ――― Project Settings ――――――――――――――――――――――――――――――――――――――――――――――――――――――――― #
