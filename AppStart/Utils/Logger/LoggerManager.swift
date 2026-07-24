@@ -26,25 +26,28 @@ open class LoggerManager {
     
     private var consoleMode: LoggerFormatter.LogMode = .easy
     private var fileMode: LoggerFormatter.LogMode = .detail
-    private var customFileLogger: DDFileLogger? // 支持外部传入
-    
-    // 指定日志存放路径
+    private var customFileLogger: DDFileLogger?
+    private var storagePolicy: LogStoragePolicy = .default
+    private var _defaultFileLogger: DDFileLogger?
+
     private let logDirectoryPath = (QuickPaths.documentPath ?? "") + "/Logs"
 
-    // 默认文件 Logger (改为文件大小分片 2mb; 最多10个文件, 文件夹容量最大20M)
-    private lazy var defaultFileLogger: DDFileLogger = {
-        // 初始化 日志文件夹的路径
-        let _fileLogger = DDFileLogger(logFileManager: DDLogFileManagerDefault(logsDirectory: logDirectoryPath))
-        // 重用log文件，不要每次启动都创建新的log文件(默认值是false)
-        _fileLogger.doNotReuseLogFiles = false
-        // 禁用文件大小滚动
-        //_fileLogger.maximumFileSize = 0
-        _fileLogger.maximumFileSize = 2 * 1024 * 1024   // 单个文件最大2MB
-        _fileLogger.rollingFrequency = 0  // 禁用按时间滚动 (时间切割)
-        _fileLogger.logFileManager.maximumNumberOfLogFiles = 10  // 最多保存10个文件
-        _fileLogger.logFileManager.logFilesDiskQuota = 1024 * 1024 * 20 // log文件夹最多保存20M
-        return _fileLogger
-    }()
+    private var defaultFileLogger: DDFileLogger {
+        if let logger = _defaultFileLogger { return logger }
+        let logger = Self.makeFileLogger(logsDirectory: logDirectoryPath, policy: storagePolicy)
+        _defaultFileLogger = logger
+        return logger
+    }
+
+    private static func makeFileLogger(logsDirectory: String, policy: LogStoragePolicy) -> DDFileLogger {
+        let fileLogger = DDFileLogger(logFileManager: DDLogFileManagerDefault(logsDirectory: logsDirectory))
+        fileLogger.doNotReuseLogFiles = !policy.reuseLogFilesOnLaunch
+        fileLogger.maximumFileSize = policy.maxFileSize
+        fileLogger.rollingFrequency = policy.rollingFrequency
+        fileLogger.logFileManager.maximumNumberOfLogFiles = policy.maxFileCount
+        fileLogger.logFileManager.logFilesDiskQuota = policy.diskQuota
+        return fileLogger
+    }
     
     // 对外提供路径只读访问
     public var logPath: String {
@@ -73,7 +76,21 @@ open class LoggerManager {
         self.fileMode = mode
         return self
     }
-    
+
+    /// 文件日志存储策略（需在 `launch()` 前调用；自定义 `fileLogger` 时无效）
+    @discardableResult
+    public func storage(_ policy: LogStoragePolicy) -> Self {
+        storagePolicy = policy
+        if customFileLogger == nil {
+            _defaultFileLogger = Self.makeFileLogger(logsDirectory: logDirectoryPath, policy: policy)
+        }
+        return self
+    }
+
+    public var currentStoragePolicy: LogStoragePolicy {
+        storagePolicy
+    }
+
     /// 外部传入 fileLogger
     @discardableResult
     public func fileLogger(_ logger: DDFileLogger) -> Self {
@@ -86,11 +103,15 @@ open class LoggerManager {
     public func setup(level: DDLogLevel = .all,
                       consoleMode: LoggerFormatter.LogMode = .easy,
                       fileMode: LoggerFormatter.LogMode = .detail,
+                      storagePolicy: LogStoragePolicy = .default,
                       fileLogger: DDFileLogger? = nil) -> Self {
         self.logLevel = level
         self.consoleMode = consoleMode
         self.fileMode = fileMode
         self.customFileLogger = fileLogger
+        if fileLogger == nil {
+            storage(storagePolicy)
+        }
         return launch()
     }
     
@@ -336,5 +357,26 @@ open class LoggerFormatter: NSObject, DDLogFormatter {
             // [\(logMessage.threadID)]
             return "[\(time)] [\(flag)]" + " " +  "[\(logMessage.fileName):\(logMessage.line) \(logMessage.function ?? "")]" + " " + message
         }
+    }
+}
+
+// MARK: - LogTag 工厂
+
+public extension LoggerManager {
+
+    static func tag(_ tag: String) -> LogTag {
+        LogTag(tag)
+    }
+
+    static func tag(_ tags: [String]) -> LogTag {
+        LogTag(tags: tags)
+    }
+
+    static func tag(_ tags: String...) -> LogTag {
+        LogTag(tags: tags)
+    }
+
+    static func tag<E: LogTagEnum>(_ tag: E) -> LogTag {
+        LogTag(tag.rawValue)
     }
 }
