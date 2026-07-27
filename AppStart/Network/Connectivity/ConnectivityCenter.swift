@@ -139,6 +139,8 @@ public final class ConnectivityCenter: @unchecked Sendable {
             return .unrestricted
         case .restricted:
             return .restricted
+        case .restrictedStateUnknown:
+            return .unknown
         @unknown default:
             return .unknown
         }

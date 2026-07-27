@@ -15,8 +15,14 @@ target 'AppStart_Example' do
 end
 
 post_install do |installer|
-  #base_config_setup(installer)
-  installer.pods_project.targets.each do |target|
+  minimum = '14.0'
+  projects = [installer.pods_project]
+  projects.concat(installer.generated_projects.map(&:project)) if installer.respond_to?(:generated_projects)
+  projects.each do |project|
+    project.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = minimum
+    end
+    project.targets.each do |target|
       # Enable tracing resources
       if target.name == 'RxSwift'
         target.build_configurations.each do |config|
@@ -25,10 +31,10 @@ post_install do |installer|
           end
         end
       end
-      #
       target.build_configurations.each do |config|
-          config.build_settings['SWIFT_VERSION'] = '5.0'
-          config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
+        config.build_settings['SWIFT_VERSION'] = '5.0'
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = minimum
       end
+    end
   end
 end

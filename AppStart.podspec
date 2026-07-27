@@ -6,9 +6,10 @@
 # To learn more about a Podspec see https://guides.cocoapods.org/syntax/podspec.html
 # > 本地校验
 #  s.source = { :path => '../' }
-# ✗ pod spec lint AppStart.podspec --allow-warnings --verbose
-# > 推到远端
-# ✗ pod trunk push AppStart.podspec --verbose --allow-warnings
+# > 本地校验（Xcode 15+ 须加 modular headers + static libs，否则三方 Pod 会触发 libarclite 错误）
+# ✗ pod spec lint AppStart.podspec --allow-warnings --use-modular-headers --use-libraries
+# > 发布到 Trunk（Trunk 不支持 --use-modular-headers，本地 spec lint 通过后用 skip-tests 发布）
+# ✗ pod trunk push AppStart.podspec --verbose --allow-warnings --skip-tests
 
 Pod::Spec.new do |s|
   s.name             = 'AppStart'
@@ -30,7 +31,12 @@ Pod::Spec.new do |s|
   
   s.ios.deployment_target = '14.0'
   s.swift_versions = ['5.0']
+  # 仅约束 AppStart 自身 Pod target；勿用 user_target_xcconfig 写入宿主 App，
+  # 否则会与宿主工程里更高的 IPHONEOS_DEPLOYMENT_TARGET 冲突并触发 pod install 警告。
   s.pod_target_xcconfig = { 'IPHONEOS_DEPLOYMENT_TARGET' => '14.0' }
+
+  # 模块 README（Connectivity / HTTP / BLE 等）仅保留在 Pod 目录，不参与编译
+  s.preserve_paths = 'AppStart/**/*.md', 'README.md'
   
   # ――― Source Code ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― #
   
@@ -130,7 +136,7 @@ Pod::Spec.new do |s|
     end
 
     http.subspec 'Connectivity' do |conn|
-      conn.source_files = 'AppStart/Network/Connectivity/*.{swift,md}'
+      conn.source_files = 'AppStart/Network/Connectivity/*.swift'
       conn.frameworks = 'Network', 'CoreTelephony'
       conn.ios.deployment_target = '14.0'
     end
