@@ -71,7 +71,7 @@ Clone the repo and run `pod install` from the Example directory first.
 ### Utils
 
 - **Logger**：`LogM` 日志管理、文件策略、内置日志列表页（Ble / Network 等模块的 debug 日志依赖此项，使用前需 `LogM.shared.setup(...).launch()`）
-- **AuthStatus**：相册、定位等权限与 Alamofire 网络可达性
+- **AuthStatus**：相册、定位、蓝牙等隐私授权与系统服务开关（详见文件头注释）
 - **Toolkit**：Toast、本地化、二维码、图片浏览等
 - **Reactive**：RxSwift / RxGesture 常用扩展
 
@@ -80,6 +80,8 @@ Clone the repo and run `pod install` from the Example directory first.
 ### Network
 
 Moya `TargetType` 定义接口 → `NetworkFetch` / `NetworkAsync` 发起请求 → `NetworkPlugins` 注入 Loading、超时、日志与业务 `NetworkHandle`。详见 [HTTP_README.md](AppStart/Network/Core/HTTP_README.md)。
+
+**Connectivity**（路径监听 + 可选互联网探测）与权限模块分离，详见 [CONNECTIVITY_README.md](AppStart/Network/Connectivity/CONNECTIVITY_README.md)。
 
 ### Ble
 

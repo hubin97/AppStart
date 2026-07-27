@@ -82,26 +82,6 @@ extension AuthorizationStatus {
         Task { authsBlock(await request(.microphone).legacyBool) }
     }
 
-    /// 应用内使用数据权限, 蜂窝/WLAN 网络对应 CTCellularData 值如下
-    /// [关闭:.restricted; WLAN:.restricted; WLAN与蜂窝网络:.notRestricted]
-    @available(*, deprecated, message: "Use AuthorizationStatus.monitorCellularDataRestriction() instead")
-    public static func cellularDataService(authsBlock: @escaping AuthsBlock) {
-        Task {
-            for await allowed in monitorCellularDataRestriction() {
-                authsBlock(allowed)
-            }
-        }
-    }
-
-    @available(*, deprecated, message: "Use AuthorizationStatus.monitorNetworkReachability() instead")
-    public static func networkService(authsBlock: @escaping AuthsBlock) {
-        Task {
-            for await reachable in monitorNetworkReachability() {
-                authsBlock(reachable)
-            }
-        }
-    }
-
     @available(*, deprecated, message: "Use await AuthorizationStatus.request(.siri) instead")
     public static func siriService(authsBlock: @escaping AuthsBlock) {
         Task { authsBlock(await request(.siri).legacyBool) }

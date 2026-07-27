@@ -128,6 +128,12 @@ Pod::Spec.new do |s|
     ['RxSwift', 'RxRelay', 'Moya', 'ObjectMapper', 'PromiseKit'].each do |dd|
       http.dependency dd
     end
+
+    http.subspec 'Connectivity' do |conn|
+      conn.source_files = 'AppStart/Network/Connectivity/*.{swift,md}'
+      conn.frameworks = 'Network', 'CoreTelephony'
+      conn.ios.deployment_target = '14.0'
+    end
     
     http.subspec 'Core' do |ss|
       ss.source_files = 'AppStart/Network/Core/*.swift'

@@ -19,16 +19,12 @@ import Photos
 /// | 定位 | 定位服务总开关 | 使用期间 / 始终 |
 /// | Siri | App Siri capability | Siri 隐私 |
 /// | 蓝牙 | 蓝牙硬件是否开启 | 蓝牙隐私 |
-/// | 网络连通性 | 当前是否可达 | — |
 enum AuthPermissionCenter {
 
     // MARK: - Snapshot
 
     static func snapshot(for permission: AuthPermission, on host: AuthorizationStatus) async -> AuthPermissionSnapshot {
         let service = await serviceState(for: permission, on: host)
-        if permission == .networkReachability {
-            return AuthPermissionSnapshot(service: service, authorization: nil)
-        }
         let authorization: PermissionStatus?
         if let service, !service.isAvailable {
             authorization = nil
@@ -75,15 +71,10 @@ enum AuthPermissionCenter {
             return AuthPermissionMapping.siri(INPreferences.siriAuthorizationStatus())
         case .bluetooth:
             return AuthPermissionMapping.bluetooth(CBManager.authorization)
-        case .networkReachability:
-            return .denied
         }
     }
 
     static func request(_ permission: AuthPermission, on host: AuthorizationStatus) async -> PermissionStatus {
-        guard permission != .networkReachability else {
-            return await authorizationStatus(for: permission, on: host)
-        }
         let current = await authorizationStatus(for: permission, on: host)
         guard current == .notDetermined else { return current }
 
@@ -106,8 +97,6 @@ enum AuthPermissionCenter {
             return await AuthPermissionRequests.requestSiri()
         case .bluetooth:
             return AuthPermissionMapping.bluetooth(CBManager.authorization)
-        case .networkReachability:
-            return .denied
         }
     }
 
@@ -123,26 +112,8 @@ enum AuthPermissionCenter {
             return AuthorizationStatus.isSiriCapabilityEnabled ? .available : .disabled
         case .bluetooth:
             return bluetoothServiceState(await host.resolveBluetoothManagerState())
-        case .networkReachability:
-            return networkReachabilityState(on: host)
         case .apns, .photoLibrary, .microphone, .calendar, .reminder:
             return nil
-        }
-    }
-
-    private static func networkReachabilityState(on host: AuthorizationStatus) -> AuthServiceState {
-        if host.reachability == nil {
-            host.reachability = AlamofireReachability()
-            _ = host.reachability?.startListening()
-        }
-        guard let reachability = host.reachability else { return .unknown }
-        switch reachability.networkReachabilityStatus {
-        case .reachable:
-            return .available
-        case .notReachable:
-            return .disabled
-        case .unknown:
-            return .unknown
         }
     }
 

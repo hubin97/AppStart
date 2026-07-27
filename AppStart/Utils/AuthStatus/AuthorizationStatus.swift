@@ -8,7 +8,6 @@
 import UIKit
 import Foundation
 import CoreBluetooth
-import CoreTelephony
 
 /**
  1. info.plist 配置权限描述
@@ -66,6 +65,8 @@ import CoreTelephony
  <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
  <string>App需要您的同意,才能始终访问位置</string>
 
+ /// 网络连通性见 `AppStart/Network/Connectivity/CONNECTIVITY_README.md`
+
  2. 调用示例
 
  模型：先查「系统服务」，再查「App 授权」；业务判断用 `snapshot.isUsable`。
@@ -97,7 +98,6 @@ import CoreTelephony
  await AuthorizationStatus.resolve(.calendar, requestIfNeeded: true)
  await AuthorizationStatus.resolve(.reminder, requestIfNeeded: true)
  await AuthorizationStatus.resolve(.bluetooth, requestIfNeeded: false)  // 蓝牙授权由 CBCentralManager 首次使用时触发
- await AuthorizationStatus.snapshot(for: .networkReachability)           // 仅网络连通性，无授权层
 
  // 4. Siri（须先在 Xcode 开启 Siri capability，否则 service 为「未开启」）
  // AppDelegate.application(_:didFinishLaunchingWithOptions:)
@@ -106,22 +106,10 @@ import CoreTelephony
      let siri = await AuthorizationStatus.resolve(.siri, requestIfNeeded: true)
  }
 
- // 5. 监听（AsyncStream，需在 Task 中 for await）
- Task {
-     for await allowed in AuthorizationStatus.monitorCellularDataRestriction() {
-         // allowed == true 表示蜂窝/WLAN 数据未受限
-     }
- }
- Task {
-     for await reachable in AuthorizationStatus.monitorNetworkReachability() {
-         // reachable == true 表示网络可达
-     }
- }
-
- // 6. 跳转系统设置（引导用户开定位/蓝牙/通知等）
+ // 5. 跳转系统设置（引导用户开定位/蓝牙/通知等）
  AuthorizationStatus.shared.openSettings()
 
- // 7. 进阶：仅操作 App 授权层（不含系统服务判断）
+ // 6. 进阶：仅操作 App 授权层（不含系统服务判断）
  Task {
      let status = await AuthorizationStatus.status(for: .camera)   // .granted / .denied / …
      if status == .notDetermined {
@@ -129,13 +117,13 @@ import CoreTelephony
      }
  }
 
- // 8. 底层：蓝牙硬件状态（业务层优先用 snapshot(for: .bluetooth)）
+ // 7. 底层：蓝牙硬件状态（业务层优先用 snapshot(for: .bluetooth)）
  Task {
      let state = await AuthorizationStatus.bluetoothManagerState()
      // .poweredOn / .poweredOff / .unauthorized …
  }
 
- // 9. UI 更新请在 MainActor
+ // 8. UI 更新请在 MainActor
  Task { @MainActor in
      let snap = await AuthorizationStatus.snapshot(for: .camera)
      self.detailLabel.text = snap.summaryText
@@ -213,8 +201,6 @@ public enum AuthPermission: Sendable, Equatable {
     case siri
     /// 蓝牙（服务：硬件开关；授权：蓝牙隐私）
     case bluetooth
-    /// 网络连通性（仅系统服务层，无 App 授权）
-    case networkReachability
 }
 
 /// 「服务 + 授权」快照。
@@ -261,10 +247,6 @@ public class AuthorizationStatus: NSObject {
 
     /// 等待 `bluetoothManagerState()` 的 continuation（`.unknown` 时由 delegate 唤醒）
     var bluetoothStateContinuation: CheckedContinuation<CBManagerState, Never>?
-    /// 蜂窝数据监听需强引用
-    private var cellularData: CTCellularData?
-    /// 网络可达性监听需强引用
-    var reachability: AlamofireReachability?
 
     let locationCoordinator = LocationAuthorizationCoordinator()
 
@@ -328,38 +310,6 @@ extension AuthorizationStatus {
         if centralManager.state != .unknown { return centralManager.state }
         return await withCheckedContinuation { continuation in
             bluetoothStateContinuation = continuation
-        }
-    }
-
-    /// 监听蜂窝/WLAN 数据是否受限。示例：`for await allowed in AuthorizationStatus.monitorCellularDataRestriction() { … }`
-    public static func monitorCellularDataRestriction() -> AsyncStream<Bool> {
-        AsyncStream { continuation in
-            let shared = AuthStatus.shared
-            if shared.cellularData == nil {
-                shared.cellularData = CTCellularData()
-            }
-            shared.cellularData?.cellularDataRestrictionDidUpdateNotifier = { state in
-                continuation.yield(state == .notRestricted)
-            }
-        }
-    }
-
-    /// 监听网络可达性。示例：`for await ok in AuthorizationStatus.monitorNetworkReachability() { … }`
-    public static func monitorNetworkReachability() -> AsyncStream<Bool> {
-        AsyncStream { continuation in
-            let shared = AuthStatus.shared
-            if shared.reachability == nil {
-                shared.reachability = AlamofireReachability()
-            }
-            guard let reachability = shared.reachability else {
-                continuation.yield(false)
-                continuation.finish()
-                return
-            }
-            reachability.listener = { status in
-                continuation.yield(status != .notReachable && status != .unknown)
-            }
-            _ = reachability.startListening()
         }
     }
 }
