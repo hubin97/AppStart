@@ -7,16 +7,15 @@
 
 import UIKit
 import Foundation
-import CoreLocation
-import AVFoundation
-import Photos
 import CoreBluetooth
-//iOS9新增蜂窝网络权限授权 CoreTelephony/CTCellularData
 import CoreTelephony
-import Intents
-import EventKit
 
 /**
+ 1. info.plist 配置权限描述
+
+ <!-- 推送通知（APNs） -->
+ <key>NSLocalNotificationUsageDescription</key>
+ <string>App需要您的同意,才能访问推送通知</string>
  <!-- 相册 -->
  <key>NSPhotoLibraryUsageDescription</key>
  <string>App需要您的同意,才能访问相册</string>
@@ -63,295 +62,304 @@ import EventKit
  <string>App需要您的同意,才能使用语音识别</string>
  <key>NSSiriUsageDescription</key>
  <string>App需要您的同意,才能使用Siri</string>
- 
+ <!-- 始终定位（iOS 11+，配合 Always 授权） -->
+ <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+ <string>App需要您的同意,才能始终访问位置</string>
 
- Privacy - Calendars Usage Description
- App需要您的同意,才能访问你的日历
- Privacy - Reminders Usage Description
- App需要您的同意,才能访问你的提醒事项
- ————————————————
- 版权声明：本文为CSDN博主「夕阳下的守望者」的原创文章，遵循CC 4.0 BY-SA版权协议，转载请附上原文出处链接及本声明。
- 原文链接：https://blog.csdn.net/wgl_happy/article/details/53810647
- https://www.jianshu.com/p/0902b2b0b3e3?from=singlemessage
+ 2. 调用示例
+
+ 模型：先查「系统服务」，再查「App 授权」；业务判断用 `snapshot.isUsable`。
+
+ // 1. 推荐入口（查询 + 可选请求授权）
+ Task {
+     let camera = await AuthorizationStatus.resolve(.camera, requestIfNeeded: true)
+     guard camera.isUsable else {
+         label.text = camera.summaryText   // 如「服务：未开启」或「授权：已拒绝」
+         return
+     }
+     // 打开相机…
+ }
+
+ // 2. 只读快照（不弹授权框）
+ Task {
+     let snap = await AuthorizationStatus.snapshot(for: .bluetooth)
+     // snap.service        → 蓝牙硬件是否开启
+     // snap.authorization  → 蓝牙隐私授权
+     // snap.summaryText    → 「服务：可用 · 授权：已授权」
+ }
+
+ // 3. 各权限类型
+ await AuthorizationStatus.resolve(.apns, requestIfNeeded: true)
+ await AuthorizationStatus.resolve(.photoLibrary, requestIfNeeded: true)
+ await AuthorizationStatus.resolve(.microphone, requestIfNeeded: true)
+ await AuthorizationStatus.resolve(.location(.whenInUse), requestIfNeeded: true)
+ await AuthorizationStatus.resolve(.location(.always), requestIfNeeded: true)
+ await AuthorizationStatus.resolve(.calendar, requestIfNeeded: true)
+ await AuthorizationStatus.resolve(.reminder, requestIfNeeded: true)
+ await AuthorizationStatus.resolve(.bluetooth, requestIfNeeded: false)  // 蓝牙授权由 CBCentralManager 首次使用时触发
+ await AuthorizationStatus.snapshot(for: .networkReachability)           // 仅网络连通性，无授权层
+
+ // 4. Siri（须先在 Xcode 开启 Siri capability，否则 service 为「未开启」）
+ // AppDelegate.application(_:didFinishLaunchingWithOptions:)
+ AuthorizationStatus.isSiriCapabilityEnabled = true
+ Task {
+     let siri = await AuthorizationStatus.resolve(.siri, requestIfNeeded: true)
+ }
+
+ // 5. 监听（AsyncStream，需在 Task 中 for await）
+ Task {
+     for await allowed in AuthorizationStatus.monitorCellularDataRestriction() {
+         // allowed == true 表示蜂窝/WLAN 数据未受限
+     }
+ }
+ Task {
+     for await reachable in AuthorizationStatus.monitorNetworkReachability() {
+         // reachable == true 表示网络可达
+     }
+ }
+
+ // 6. 跳转系统设置（引导用户开定位/蓝牙/通知等）
+ AuthorizationStatus.shared.openSettings()
+
+ // 7. 进阶：仅操作 App 授权层（不含系统服务判断）
+ Task {
+     let status = await AuthorizationStatus.status(for: .camera)   // .granted / .denied / …
+     if status == .notDetermined {
+         _ = await AuthorizationStatus.request(.camera)
+     }
+ }
+
+ // 8. 底层：蓝牙硬件状态（业务层优先用 snapshot(for: .bluetooth)）
+ Task {
+     let state = await AuthorizationStatus.bluetoothManagerState()
+     // .poweredOn / .poweredOff / .unauthorized …
+ }
+
+ // 9. UI 更新请在 MainActor
+ Task { @MainActor in
+     let snap = await AuthorizationStatus.snapshot(for: .camera)
+     self.detailLabel.text = snap.summaryText
+ }
  */
-// MARK: - global var and methods
-// !!!: 务必考虑回调内容是否需要主线程处理
+
+// MARK: - Types
+
 public typealias AuthStatus = AuthorizationStatus
-public typealias AuthsBlock = (_ granted: Bool?) -> Void
 
-/// 唤起定位权限弹框
-public protocol AuthStatusLocationDelegate: AnyObject {
-    //FIXME: 注意locManager必须由外部全局持有, 否则弹框会一闪而过, 无法交互点击
-    var locManager: CLLocationManager { get set }
-    func wakeupAuthAlert()
-}
+/// 权限结果；替代旧版 `Bool?`（`nil` → `.notDetermined`）。
+public enum PermissionStatus: Sendable {
+    case granted
+    case denied
+    case notDetermined
+    case restricted
 
-extension AuthStatusLocationDelegate {
-    public func wakeupAuthAlert() {
-        locManager.requestAlwaysAuthorization()
-        locManager.requestWhenInUseAuthorization()
+    public var isGranted: Bool { self == .granted }
+
+    /// UI 展示文案
+    public var displayText: String {
+        switch self {
+        case .granted: return "已授权"
+        case .denied: return "已拒绝"
+        case .notDetermined: return "未决定"
+        case .restricted: return "受限制"
+        }
     }
 }
 
-/// 权限控制类
+/// 定位授权级别（对应 `CLLocationManager.requestWhenInUseAuthorization` / `requestAlwaysAuthorization`）。
+public enum LocationAuthLevel: Sendable, Equatable {
+    /// 使用期间定位；Info.plist 需 `NSLocationWhenInUseUsageDescription`
+    case whenInUse
+    /// 始终定位；需额外配置 `NSLocationAlwaysAndWhenInUseUsageDescription`
+    case always
+}
+
+/// 系统服务能力（优先于 App 授权判断；无独立开关的权限对应 `nil`）。
+public enum AuthServiceState: Sendable, Equatable {
+    case available
+    case disabled
+    case unsupported
+    case unknown
+
+    public var isAvailable: Bool { self == .available }
+
+    public var displayText: String {
+        switch self {
+        case .available: return "可用"
+        case .disabled: return "未开启"
+        case .unsupported: return "不支持"
+        case .unknown: return "未知"
+        }
+    }
+}
+
+/// 可查询 / 请求的权限与系统服务（配合 `resolve` / `snapshot`；示例见文件顶部注释）。
+public enum AuthPermission: Sendable, Equatable {
+    /// 推送通知（APNs）
+    case apns
+    /// 相机
+    case camera
+    /// 相册读写（含 iOS 14+ `.limited` 有限访问，映射为 `.granted`）
+    case photoLibrary
+    /// 麦克风
+    case microphone
+    /// 定位；关联值区分 whenInUse / always
+    case location(LocationAuthLevel)
+    /// 日历
+    case calendar
+    /// 提醒事项
+    case reminder
+    /// Siri（宿主 App 需开启 Siri capability 并将 `AuthorizationStatus.isSiriCapabilityEnabled = true`）
+    case siri
+    /// 蓝牙（服务：硬件开关；授权：蓝牙隐私）
+    case bluetooth
+    /// 网络连通性（仅系统服务层，无 App 授权）
+    case networkReachability
+}
+
+/// 「服务 + 授权」快照。
+/// - `isUsable`：业务是否可用（服务 OK 且已授权）
+/// - `summaryText`：UI 展示，如「服务：可用 · 授权：已授权」
+public struct AuthPermissionSnapshot: Sendable {
+    /// 系统服务是否可用；`nil` 表示该项无独立服务开关。
+    public let service: AuthServiceState?
+    /// App 隐私授权；服务不可用时通常为 `nil`（无需再查授权）。
+    public let authorization: PermissionStatus?
+
+    public var isUsable: Bool {
+        guard service?.isAvailable ?? true else { return false }
+        guard let authorization else { return service?.isAvailable ?? true }
+        return authorization.isGranted
+    }
+
+    public var canRequestAuthorization: Bool {
+        guard service?.isAvailable ?? true else { return false }
+        return authorization == .notDetermined
+    }
+
+    public var summaryText: String {
+        if let service, !service.isAvailable {
+            return "服务：\(service.displayText)"
+        }
+        var parts: [String] = []
+        if let service {
+            parts.append("服务：\(service.displayText)")
+        }
+        if let authorization {
+            parts.append("授权：\(authorization.displayText)")
+        }
+        return parts.isEmpty ? "—" : parts.joined(separator: " · ")
+    }
+}
+
+// MARK: - AuthorizationStatus
+
+/// 系统权限与可达性查询（Info.plist 配置与调用示例见文件顶部注释块）。
 public class AuthorizationStatus: NSObject {
 
     public static let shared = AuthStatus()
-    
+
+    /// 等待 `bluetoothManagerState()` 的 continuation（`.unknown` 时由 delegate 唤醒）
+    var bluetoothStateContinuation: CheckedContinuation<CBManagerState, Never>?
+    /// 蜂窝数据监听需强引用
+    private var cellularData: CTCellularData?
+    /// 网络可达性监听需强引用
+    var reachability: AlamofireReachability?
+
+    let locationCoordinator = LocationAuthorizationCoordinator()
+
+    lazy var centralManager: CBCentralManager = {
+        let options: [String: Any] = [
+            CBCentralManagerOptionShowPowerAlertKey: true,
+            CBCentralManagerScanOptionAllowDuplicatesKey: false
+        ]
+        return CBCentralManager(delegate: self, queue: nil, options: options)
+    }()
+
     override init() {
         super.init()
-        // 调用self.centralManager，触发初始化
-        _ = self.centralManager
+        _ = centralManager
     }
-        
-    /// 获取系统蓝牙状态回调,
-    var systemBTStateBlock: ((_ state: CBManagerState) -> Void)?
-    /// 系统蓝牙设备管理对象
-    lazy var centralManager: CBCentralManager = {
-        // CBCentralManagerScanOptionAllowDuplicatesKey值为 No，表示不重复扫描已发现的设备
-        let options = [CBCentralManagerOptionShowPowerAlertKey: "YES", CBCentralManagerScanOptionAllowDuplicatesKey: "NO"]
-        let centralManager = CBCentralManager(delegate: self, queue: nil, options: options)
-        return centralManager
-    }()
-    
-    /// 跳转到系统设置页
+
+    /// 跳转系统设置。示例：`AuthorizationStatus.shared.openSettings()`
     public func openSettings() {
-        guard let setUrl = URL.init(string: UIApplication.openSettingsURLString) else { return }
+        guard let setUrl = URL(string: UIApplication.openSettingsURLString) else { return }
         if UIApplication.shared.canOpenURL(setUrl) {
             UIApplication.shared.open(setUrl)
         }
     }
-    
-    /// APNs服务
-    public static func apnsServices(authsBlock: @escaping AuthsBlock) {
-        UNUserNotificationCenter.current().getNotificationSettings { (settings) in
-            if settings.authorizationStatus == .authorized {
-                return authsBlock(true)
-            }
-            UNUserNotificationCenter.current().requestAuthorization(options: UNAuthorizationOptions(rawValue: UNAuthorizationOptions.alert.rawValue | UNAuthorizationOptions.badge.rawValue | UNAuthorizationOptions.sound.rawValue)) { (granted, _) in
-                //print("APNs授权\(granted ? "成功": "失败")")
-                return authsBlock(granted)
-            }
-        }
-    }
-    
-    /// 定位服务
-    /**
-     <!-- 位置 -->
-     <key>NSLocationUsageDescription</key>
-     <string>App需要您的同意,才能访问位置</string>
-     <!-- 在使用期间访问位置 -->
-     <key>NSLocationWhenInUseUsageDescription</key>
-     <string>App需要您的同意,才能在使用期间访问位置</string>
-     <!-- 始终访问位置 -->
-     <key>NSLocationAlwaysUsageDescription</key>
-     <string>App需要您的同意,才能始终访问位置</string>
-  
-     KEY: NSLocationAlwaysAndWhenInUseUsageDescription
-     
-     This app has attempted to access privacy-sensitive data without a usage description. The app's Info.plist must contain both “NSLocationAlwaysAndWhenInUseUsageDescription” and “NSLocationWhenInUseUsageDescription” keys with string values explaining to the user how the app uses this data
-     
-     */
-    /// 返回 nil, 表示未选定, 
-    public static func locationServices(authsBlock: AuthsBlock) {
-        let authState = CLLocationManager.authorizationStatus()
-        if CLLocationManager.locationServicesEnabled() {
-            if authState != .notDetermined {
-                return authsBlock((authState == .authorizedAlways || authState == .authorizedWhenInUse) ? true: false)
-            } else {
-                //AuthStatus().startLocation()
-                return authsBlock(nil)
-            }
-        } else {
-            return authsBlock(false)
-        }
-    }
-    
-    /// 相机权限
-    /**
-     <!-- 相机 -->
-     <key>NSCameraUsageDescription</key>
-     <string>App需要您的同意,才能访问相机</string>
-     */
-    public static func cameraService(authsBlock: @escaping AuthsBlock) {
-        let authStatus: AVAuthorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)
-        if authStatus == .authorized {
-            return authsBlock(true)
-        } else if authStatus == .notDetermined {
-            return AVCaptureDevice.requestAccess(for: .video) { (granted) in
-                return authsBlock(granted)
-            }
-        }
-        // .denied, .restricted: unknow
-        return authsBlock(false)
-    }
-    
-    /// 相册权限
-    /**
-     <!-- 相册 -->
-     <key>NSPhotoLibraryUsageDescription</key>
-     <string>App需要您的同意,才能访问相册</string>
-     <!-- iOS11 新增 -->
-     <key>NSPhotoLibraryAddUsageDescription</key>
-     <string>App需要您的同意,才能添加照片到相册</string>
-     */
-    public static func albumService(authsBlock: @escaping AuthsBlock) {
-        let authStatus: PHAuthorizationStatus = PHPhotoLibrary.authorizationStatus()
-        if authStatus == .authorized {
-            return authsBlock(true)
-        } else if authStatus == .notDetermined {
-            return PHPhotoLibrary.requestAuthorization { (newStatus) in
-                return authsBlock(newStatus == .authorized)
-            }
-        }
-        // .denied, .restricted: unknow
-        return authsBlock(false)
-    }
-    
-    /// 麦克风权限
-    /**
-     <!-- 麦克风 -->
-     <key>NSMicrophoneUsageDescription</key>
-     <string>App需要您的同意,才能访问麦克风</string>
-     */
-    public static func microphoneService(authsBlock: @escaping AuthsBlock) {
-        let authStatus: AVAudioSession.RecordPermission = AVAudioSession.sharedInstance().recordPermission
-        if authStatus == .granted {
-            return authsBlock(true)
-        } else if authStatus == .undetermined {
-            AVAudioSession.sharedInstance().requestRecordPermission { (granted) in
-                return authsBlock(granted)
-            }
-        }
-        return authsBlock(false)
-    }
-    
-    /// 应用内使用数据权限, 蜂窝/WLAN网络对应CTCellularData值如下
-    /// [关闭:.restricted; WLAN:.restricted; WLAN与蜂窝网络:.notRestricted]
-    public static func cellularDataService(authsBlock: @escaping AuthsBlock) {
-        CTCellularData().cellularDataRestrictionDidUpdateNotifier = { (CTCellularDataRestrictedState) in
-            authsBlock(CTCellularDataRestrictedState == .notRestricted)
-        }
-    }
-    
-    /// 获取网络是否可到达
-    public static func networkService(authsBlock: @escaping AuthsBlock) {
-        let reachability = AlamofireReachability()
-        reachability?.startListening()
-        reachability?.listener = { status in
-            print("network:\(status)")
-            authsBlock(status != .notReachable && status != .unknown)
-        }
-    }
-    
-    /// 获取Siri是否已开启
-    public static func siriService(authsBlock: @escaping AuthsBlock) {
-        let siriAuthStatus = INPreferences.siriAuthorizationStatus()
-        if siriAuthStatus == .authorized {
-            authsBlock(true)
-        } else {
-            INPreferences.requestSiriAuthorization { st in
-                authsBlock(st == .authorized)
-            }
-        }
-    }
-    
-    //    Privacy - Calendars Usage Description
-    //    App需要您的同意,才能访问你的日历
-    public static func calendarService(authsBlock: @escaping AuthsBlock) {
-        // let auth = EKEventStore.authorizationStatus(for: .event)
-        return EKEventStore().requestAccess(to: .event) { granted, _ in
-            return authsBlock(granted)
-        }
-    }
-    
-    //    Privacy - Reminders Usage Description
-    //    App需要您的同意,才能访问你的提醒事项
-    public static func reminderService(authsBlock: @escaping AuthsBlock) {
-        return EKEventStore().requestAccess(to: .reminder) { granted, _ in
-            return authsBlock(granted)
-        }
-    }
 }
 
-// MARK: - private mothods
+// MARK: - Async API
+
 extension AuthorizationStatus {
-    
-}
 
-// MARK: - call backs
-extension AuthorizationStatus {
-    
-}
+    /// Siri capability 开关；示例：`AuthorizationStatus.isSiriCapabilityEnabled = true`（AppDelegate，需 Xcode 开启 Siri capability）
+    public static var isSiriCapabilityEnabled = false
 
-// MARK: - delegate or data source
-//extension AuthorizationStatus: AuthStatusLocationDelegate {
-//    /// 辅助弹框提示
-//    public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-//        print("didUpdateLocations---")
-//    }
-//    public func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-//        print("didFailWithError---")
-//    }
-//}
-
-/// 蓝牙权限
-/**
- <!-- 蓝牙 -->
- <key>NSBluetoothPeripheralUsageDescription</key>
- <string>App需要您的同意,才能访问蓝牙</string>
- <!-- 上面权限 官方 API提示iOS13已废弃 -->
- <key>NSBluetoothAlwaysUsageDescription</key>
- <string>App需要您的同意,才能访问蓝牙</string>
- */
-// MARK: - 蓝牙权限
-/// 手机系统蓝牙是否打开校验
-extension AuthorizationStatus: CBCentralManagerDelegate {
-    
-    /// CBCentralManagerDelegate
-    public func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        //SVProgressHUD.dismiss()
-        systemBTStateBlock?(central.state)
+    /// 只读快照，不弹授权框。示例：`await AuthorizationStatus.snapshot(for: .bluetooth)`
+    public static func snapshot(for permission: AuthPermission) async -> AuthPermissionSnapshot {
+        await AuthPermissionCenter.snapshot(for: permission, on: shared)
     }
-    
-    /// 获取系统蓝牙是否打开
-    /// 代理方式获取
-    /// - Parameter authsBlock: 异步返回状态
-    public static func systemBleStateUpdate(authsBlock: @escaping ((_ state: CBManagerState) -> Void)) {
-        let central = AuthStatus.shared.centralManager
-        if central.state != .unknown {
-            authsBlock(central.state)
-            return
+
+    /// 查询并在需要时请求授权（推荐）。示例：`await AuthorizationStatus.resolve(.camera, requestIfNeeded: true)`
+    @discardableResult
+    public static func resolve(_ permission: AuthPermission, requestIfNeeded: Bool = false) async -> AuthPermissionSnapshot {
+        await AuthPermissionCenter.resolve(permission, requestIfNeeded: requestIfNeeded, on: shared)
+    }
+
+    /// 仅查 App 授权，不弹框。示例：`await AuthorizationStatus.status(for: .camera)`
+    public static func status(for permission: AuthPermission) async -> PermissionStatus {
+        await AuthPermissionCenter.authorizationStatus(for: permission, on: shared)
+    }
+
+    /// 未决定时弹系统授权框。示例：`await AuthorizationStatus.request(.microphone)`
+    @discardableResult
+    public static func request(_ permission: AuthPermission) async -> PermissionStatus {
+        await AuthPermissionCenter.request(permission, on: shared)
+    }
+
+    /// 蓝牙硬件状态（底层）。示例：`await AuthorizationStatus.bluetoothManagerState()` → `.poweredOn`
+    public static func bluetoothManagerState() async -> CBManagerState {
+        await shared.resolveBluetoothManagerState()
+    }
+
+    func resolveBluetoothManagerState() async -> CBManagerState {
+        if centralManager.state != .unknown { return centralManager.state }
+        return await withCheckedContinuation { continuation in
+            bluetoothStateContinuation = continuation
         }
-        AuthStatus.shared.systemBTStateBlock = authsBlock
     }
-    
-    /// 使用此方法, 后续直接取AuthStatus.shared.centralManager.state去判断
-    /// - Parameter showHUD:
-//    public static func systemBleStateUpdate(_ showHUD: Bool = false) {
-//        let central = AuthStatus.shared.centralManager
-//        if showHUD && central.state == .unknown {
-//            ProgressHUD.show(withStatus: "请稍后...")
-//        }
-//    }
-    
-    //!!!: 必要时 使用 systemBleState 方法 可全替代
-    //!!!: 此方法只能判断当前应用内是否授权, 打开蓝牙服务, 需要进一步判断手机是否打开蓝牙(此时必须使用代理方式获取)
-    public static func bleService(authsBlock: @escaping AuthsBlock) {
-        if #available(iOS 13.1, *) {
-            let authStatus = CBManager.authorization
-            if authStatus == .allowedAlways {
-                return authsBlock(true)
+
+    /// 监听蜂窝/WLAN 数据是否受限。示例：`for await allowed in AuthorizationStatus.monitorCellularDataRestriction() { … }`
+    public static func monitorCellularDataRestriction() -> AsyncStream<Bool> {
+        AsyncStream { continuation in
+            let shared = AuthStatus.shared
+            if shared.cellularData == nil {
+                shared.cellularData = CTCellularData()
             }
-            return authsBlock(false)
-        } else {
-            let authStatus = CBPeripheralManager.authorizationStatus()
-            if authStatus == .authorized {
-                return authsBlock(true)
+            shared.cellularData?.cellularDataRestrictionDidUpdateNotifier = { state in
+                continuation.yield(state == .notRestricted)
             }
-            return authsBlock(false)
+        }
+    }
+
+    /// 监听网络可达性。示例：`for await ok in AuthorizationStatus.monitorNetworkReachability() { … }`
+    public static func monitorNetworkReachability() -> AsyncStream<Bool> {
+        AsyncStream { continuation in
+            let shared = AuthStatus.shared
+            if shared.reachability == nil {
+                shared.reachability = AlamofireReachability()
+            }
+            guard let reachability = shared.reachability else {
+                continuation.yield(false)
+                continuation.finish()
+                return
+            }
+            reachability.listener = { status in
+                continuation.yield(status != .notReachable && status != .unknown)
+            }
+            _ = reachability.startListening()
         }
     }
 }
-
-// MARK: - other Utils

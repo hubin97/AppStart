@@ -30,6 +30,7 @@ Pod::Spec.new do |s|
   
   s.ios.deployment_target = '14.0'
   s.swift_versions = ['5.0']
+  s.pod_target_xcconfig = { 'IPHONEOS_DEPLOYMENT_TARGET' => '14.0' }
   
   # ――― Source Code ―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――― #
   
@@ -92,6 +93,7 @@ Pod::Spec.new do |s|
   s.subspec 'Utils' do |utils|
     utils.subspec 'AuthStatus' do |au|
       au.source_files = 'AppStart/Utils/AuthStatus'
+      au.ios.deployment_target = '14.0'
       au.dependency 'AppStart/Base'
     end
     
