@@ -100,7 +100,7 @@ for await discovery in BleSession.shared.scan(configuration: BleProducts.pump, t
 ### 4. 连接
 
 ```swift
-let connection = try await BleSession.shared.connect(discovery: discovery, timeout: 10)
+let connection = try await BleSession.shared.connect(discovery: discovery) // 默认 15s；可传 timeout:
 // activeConnection 已由 connect 自动赋值，无需再手动设置
 ```
 
@@ -207,7 +207,7 @@ connecting → connected → ready(BleChannelReadyInfo)
 | 错误 | 触发点 |
 |------|--------|
 | `configurationNotResolved` | `connect(discovery:)` 时 discovery 无 configuration |
-| `connectionTimeout` | 连接阶段超时 |
+| `connectionTimeout` | `BleSession.connect` 默认 15s（或自定义 `timeout`）内未到 `.ready` |
 | `channelSetupFailed` | GATT 发现失败 |
 | `writeCharacteristicNotFound` | 未找到 writeChar 就 write |
 | `writeTimeout` | 串行队列 ACK 超时 |
@@ -343,12 +343,13 @@ didDiscover
 
 系统层按 Service UUID 过滤时，很多设备广播里不带目标 Service，会被漏扫。框架选择**全量 scan + matching 软件过滤**。
 
-#### 连接 `connect(to:configuration:)`
+#### 连接 `connect(to:configuration:timeout:)`
 
 1. 若 registry 里已有 connecting/connected/ready 的连接 → 复用
 2. `makeConnection` 创建 `BlePeripheralConnection`（绑定配置快照）
-3. `performConnect` → Delegate `didConnect` → GATT → `waitUntilReady()`
-4. 超时由 connection 内部 Task 触发 disconnect
+3. `startConnectionTimeout`（超时秒数由上层传入；App 默认经 `BleSession.connect` 为 15s）
+4. `performConnect` → Delegate `didConnect` → GATT → `waitUntilReady()`
+5. 超时抛 `BleError.connectionTimeout` 并 disconnect
 
 #### Delegate 转发
 

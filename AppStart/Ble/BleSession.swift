@@ -52,18 +52,12 @@ public final class BleSession {
     // MARK: - 扫描
 
     /// 扫描单款产品（使用 configuration 内绑定的 matching 与 advParser）。
-    public func scan(
-        configuration: BleConfiguration,
-        timeout: TimeInterval? = nil
-    ) -> AsyncStream<BleDiscovery> {
+    public func scan(configuration: BleConfiguration, timeout: TimeInterval? = nil) -> AsyncStream<BleDiscovery> {
         central.scan(products: [configuration], timeout: timeout)
     }
 
     /// 扫描某一已注册产品（按注册下标）。
-    public func scan(
-        at index: Int,
-        timeout: TimeInterval? = nil
-    ) -> AsyncStream<BleDiscovery>? {
+    public func scan(at index: Int, timeout: TimeInterval? = nil) -> AsyncStream<BleDiscovery>? {
         guard configurations.indices.contains(index) else { return nil }
         return scan(configuration: configurations[index], timeout: timeout)
     }
@@ -82,25 +76,18 @@ public final class BleSession {
 
     // MARK: - 连接
 
-    /// 内部连接：由 `connect(discovery:)` 调用，绑定 resolve 后的 configuration。
-    private func connect(
-        to peripheral: CBPeripheral,
-        configuration: BleConfiguration,
-        timeout: TimeInterval? = nil
-    ) async throws -> BlePeripheralConnection {
-        let connection = try await central.connect(to: peripheral, configuration: configuration, timeout: timeout)
-        activeConnection = connection
-        return connection
-    }
-
     /// 从扫描结果连接；`discovery.configuration` 须已由 resolve 写入（App 唯一推荐入口）。
-    public func connect(
-        discovery: BleDiscovery,
-        timeout: TimeInterval? = nil
-    ) async throws -> BlePeripheralConnection {
+    /// - Parameter timeout: 建连 + GATT ready 总超时，默认 15 秒；超时抛出 `BleError.connectionTimeout`。
+    public func connect(discovery: BleDiscovery, timeout: TimeInterval = 15) async throws -> BlePeripheralConnection {
         guard let configuration = discovery.configuration else {
             throw BleError.configurationNotResolved
         }
-        return try await connect(to: discovery.peripheral, configuration: configuration, timeout: timeout)
+        let connection = try await central.connect(
+            to: discovery.peripheral,
+            configuration: configuration,
+            timeout: timeout
+        )
+        activeConnection = connection
+        return connection
     }
 }

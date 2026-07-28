@@ -93,15 +93,46 @@ public enum BleReconnectPhase {
     case stopped(BleReconnectResult)
 }
 
+/// BLE 模块错误。业务层可用 `catch BleError.xxx` 区分场景。
 public enum BleError: Error {
+    /// 蓝牙不可用。
+    /// 场景：Central 未开机 / 未授权 / 不支持等（携带当时 `CBManagerState`）。
     case bluetoothUnavailable(CBManagerState)
+
+    /// 当前无可用连接。
+    /// 场景：在未建立连接或连接已断开时调用写/读等依赖通道的操作。
     case notConnected
+
+    /// 未找到可写特征。
+    /// 场景：GATT 发现完成但配置的 `writeCharUUID` 不存在；或尚未 ready 就调用 `write`。
     case writeCharacteristicNotFound
+
+    /// 连接超时。 BLE 建连 + GATT ready 常见默认在 8～15 秒；
+    /// 场景：`connect` 在默认 15s（或调用方传入的 `timeout`）内未进入 `.ready`。
     case connectionTimeout
+
+    /// 物理连接失败。
+    /// 场景：`centralManager(_:didFailToConnect:error:)`；可选附带系统 `Error`。
     case connectionFailed(Error?)
-    case channelSetupFailed(Error)   // GATT 发现失败
-    case writeTimeout                // 写队列 ACK 超时
+
+    /// GATT 通道建立失败。
+    /// 场景：服务/特征发现出错，或 Notify 订阅等就绪流程失败。
+    case channelSetupFailed(Error)
+
+    /// 写指令 ACK 超时。
+    /// 场景：`writeQueue == .serialized` 时，发出的写在 `timeout` 内未匹配到 Notify ACK。
+    case writeTimeout
+
+    /// 底层写失败。
+    /// 场景：`didWriteValueFor` 回报错误，或写队列处理 in-flight 指令失败。
     case writeFailed(Error)
+
+    /// 操作被取消。
+    /// 场景：断开连接时清空写队列；或任务/continuation 被主动取消。
     case cancelled
-    case configurationNotResolved   // discovery 未携带命中的 configuration
+
+    /// 无法解析产品配置。
+    /// 场景：`BleSession.connect(discovery:)` 时 `discovery.configuration == nil`
+    ///（未走 Session 扫描/未注册产品，或临时扫描未命中协议）。
+    case configurationNotResolved
 }

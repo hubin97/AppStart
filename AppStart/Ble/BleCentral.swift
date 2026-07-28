@@ -150,10 +150,11 @@ public final class BleCentral: NSObject {
 
     /// 连接外设并等待 GATT 通道就绪（`.ready`）。
     /// 同一 peripheral 若已在 connecting/connected/ready 状态，复用已有连接对象。
+    /// - Parameter timeout: 建连 + GATT ready 总超时（由上层传入；App 推荐走 `BleSession.connect` 默认 15s）。
     public func connect(
         to peripheral: CBPeripheral,
         configuration: BleConfiguration? = nil,
-        timeout: TimeInterval? = nil
+        timeout: TimeInterval
     ) async throws -> BlePeripheralConnection {
         let resolvedConfiguration = configuration ?? self.configuration
         syncLogger(from: [resolvedConfiguration])
@@ -164,9 +165,7 @@ public final class BleCentral: NSObject {
         let connection = makeConnection(for: peripheral, configuration: resolvedConfiguration)
         connectionRegistry[peripheral.identifier] = connection
         connection.beginWaitingForReady()
-        if let timeout {
-            connection.startConnectionTimeout(timeout)
-        }
+        connection.startConnectionTimeout(timeout)
         performConnect(peripheral)
         try await connection.waitUntilReady()
         return connection
