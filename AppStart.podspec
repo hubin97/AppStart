@@ -4,13 +4,44 @@
 #
 # Any lines starting with a # are optional, but their use is encouraged
 # To learn more about a Podspec see https://guides.cocoapods.org/syntax/podspec.html
-# > 本地校验
+#
+# ─── 本地临时调试 ───
 #  s.source = { :path => '../' }
-# > 本地校验（Xcode 15+ 须加 modular headers + static libs，否则三方 Pod 会触发 libarclite 错误）
-# ✗ pod spec lint AppStart.podspec --allow-warnings --use-modular-headers --use-libraries
-# > 发布到 Trunk（Trunk 不支持 --use-modular-headers，本地 spec lint 通过后用 skip-tests 发布）
-# ✗ pod trunk push AppStart.podspec --verbose --allow-warnings --skip-tests
-
+#
+# ─── 本地校验 / Trunk 发布（Xcode 15+ 必看）───
+#
+# 依赖里 RxSwift / DZNEmptyDataSet / PromiseKit 等仍声明 iOS 8~10，校验环境若按
+# 默认「dynamic frameworks」安装，会在新 Xcode 上触发：
+#   clang: error: SDK does not contain 'libarclite' ... try increasing the minimum deployment target
+#
+# 可行命令（spec lint 与 trunk push 用同一套参数）：
+#
+#   pod spec lint AppStart.podspec --allow-warnings --use-modular-headers --use-libraries
+#
+#   pod trunk push AppStart.podspec \
+#     --verbose --allow-warnings \
+#     --use-modular-headers --use-libraries \
+#     --skip-tests
+#
+# 各参数含义：
+#   --use-libraries
+#     校验时用 static libraries 安装依赖，避开部分 dynamic framework 下的
+#     旧 deployment target + libarclite 组合问题。
+#   --use-modular-headers
+#     允许 Swift Pod 以 modular headers 方式被静态库集成；仅 --use-libraries
+#     时，UIComponents 等依赖的 Swift 三方库会报无法作为 static library 集成。
+#   --allow-warnings
+#     忽略弃用 API、非 exhaustive switch 等 WARN（ERROR 仍会失败）。
+#   --skip-tests
+#     只跳过跑 test_spec / 单元测试；**不会**跳过库本身的 xcodebuild 编译校验。
+#     真正跳过编译需设环境变量 COCOAPODS_VALIDATOR_SKIP_XCODEBUILD=1（不推荐）。
+#
+# 业务工程不受影响：App 的 Podfile post_install 会把各 Pod 的
+# IPHONEOS_DEPLOYMENT_TARGET 抬到 14.0，日常 pod install / 真机编译不依赖上述参数。
+#
+# 注意：勿对宿主使用 user_target_xcconfig 写入 IPHONEOS_DEPLOYMENT_TARGET，
+# 否则会与宿主工程更高版本冲突并触发 pod install 警告。
+#
 Pod::Spec.new do |s|
   s.name             = 'AppStart'
   s.version          = '0.2.0'

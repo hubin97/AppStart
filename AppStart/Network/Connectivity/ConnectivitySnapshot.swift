@@ -33,13 +33,6 @@ public enum InternetValidation: Sendable, Equatable {
     case captivePortal
 }
 
-/// App 蜂窝/WLAN 数据策略（`CTCellularData`，非 reachability）。
-public enum CellularDataPolicy: Sendable, Equatable {
-    case unrestricted
-    case restricted
-    case unknown
-}
-
 /// 查询深度：`path` 仅 L1+L2（本地、无 HTTP）；`validated` 含 L3 互联网探测（async、按需）。
 public enum ConnectivityLevel: Sendable {
     /// L1 链路 + L2 路径（`NWPathMonitor`，同步可读）。
