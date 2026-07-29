@@ -53,6 +53,13 @@ import CoreBluetooth
  <string>App需要您的同意,才能访问蓝牙</string>
  <key>NSBluetoothAlwaysUsageDescription</key>
  <string>App需要您的同意,才能访问蓝牙</string>
+ <!-- 本地网络（Bonjour / 局域网，iOS 14+） -->
+ <key>NSLocalNetworkUsageDescription</key>
+ <string>App需要您的同意,才能发现与连接局域网设备</string>
+ <key>NSBonjourServices</key>
+ <array>
+     <string>_http._tcp</string>
+ </array>
  <!-- 媒体资料库 -->
  <key>NSAppleMusicUsageDescription</key>
  <string>App需要您的同意,才能访问媒体资料库</string>
@@ -98,12 +105,18 @@ import CoreBluetooth
  await AuthorizationStatus.resolve(.calendar, requestIfNeeded: true)
  await AuthorizationStatus.resolve(.reminder, requestIfNeeded: true)
  await AuthorizationStatus.resolve(.bluetooth, requestIfNeeded: false)  // 蓝牙授权由 CBCentralManager 首次使用时触发
+ await AuthorizationStatus.resolve(.localNetwork, requestIfNeeded: true)  // 须 NSLocalNetworkUsageDescription + NSBonjourServices（默认探测 _http._tcp）
 
- // 4. Siri（须先在 Xcode 开启 Siri capability，否则 service 为「未开启」）
+ // 4. Siri / 本地网络（App 启动时一次性配置，见 `AuthStatusConfiguration.swift`）
  // AppDelegate.application(_:didFinishLaunchingWithOptions:)
- AuthorizationStatus.isSiriCapabilityEnabled = true
+ AuthorizationStatus.configure {
+     $0.isSiriCapabilityEnabled = true
+     // $0.localNetwork.bonjourServiceTypes = ["_mydevice._tcp"]  // 默认 _http._tcp
+     // $0.localNetwork.grantConfirmationWait = 15  // 弹框场景判定「已授权」前的确认等待（秒）；误报时可调大
+ }
  Task {
      let siri = await AuthorizationStatus.resolve(.siri, requestIfNeeded: true)
+     let local = await AuthorizationStatus.resolve(.localNetwork, requestIfNeeded: true)
  }
 
  // 5. 跳转系统设置（引导用户开定位/蓝牙/通知等）
@@ -197,10 +210,12 @@ public enum AuthPermission: Sendable, Equatable {
     case calendar
     /// 提醒事项
     case reminder
-    /// Siri（宿主 App 需开启 Siri capability 并将 `AuthorizationStatus.isSiriCapabilityEnabled = true`）
+    /// Siri（宿主 App 需开启 Siri capability，并在 `AuthorizationStatus.configure` 中设置 `isSiriCapabilityEnabled = true`）
     case siri
     /// 蓝牙（服务：硬件开关；授权：蓝牙隐私）
     case bluetooth
+    /// 本地网络（Bonjour / 局域网；须 plist + `configuration.localNetwork`）
+    case localNetwork
 }
 
 /// 「服务 + 授权」快照。
@@ -245,10 +260,19 @@ public class AuthorizationStatus: NSObject {
 
     public static let shared = AuthStatus()
 
+    private var configurationStorage = AuthStatusConfiguration()
+
+    /// 当前宿主配置（读写后会同步到内部 Coordinator）。
+    public var configuration: AuthStatusConfiguration {
+        get { configurationStorage }
+        set { applyConfiguration(newValue) }
+    }
+
     /// 等待 `bluetoothManagerState()` 的 continuation（`.unknown` 时由 delegate 唤醒）
     var bluetoothStateContinuation: CheckedContinuation<CBManagerState, Never>?
 
     let locationCoordinator = LocationAuthorizationCoordinator()
+    let localNetworkCoordinator = LocalNetworkAuthorizationCoordinator()
 
     lazy var centralManager: CBCentralManager = {
         let options: [String: Any] = [
@@ -260,7 +284,13 @@ public class AuthorizationStatus: NSObject {
 
     override init() {
         super.init()
+        applyConfiguration(configurationStorage)
         _ = centralManager
+    }
+
+    func applyConfiguration(_ config: AuthStatusConfiguration) {
+        configurationStorage = config
+        localNetworkCoordinator.apply(config.localNetwork)
     }
 
     /// 跳转系统设置。示例：`AuthorizationStatus.shared.openSettings()`
@@ -276,8 +306,18 @@ public class AuthorizationStatus: NSObject {
 
 extension AuthorizationStatus {
 
-    /// Siri capability 开关；示例：`AuthorizationStatus.isSiriCapabilityEnabled = true`（AppDelegate，需 Xcode 开启 Siri capability）
-    public static var isSiriCapabilityEnabled = false
+    /// App 启动时注入配置。示例见文件顶部注释。
+    public static func configure(_ body: (inout AuthStatusConfiguration) -> Void) {
+        var config = shared.configurationStorage
+        body(&config)
+        shared.applyConfiguration(config)
+    }
+
+    /// 当前宿主配置。
+    public static var configuration: AuthStatusConfiguration {
+        get { shared.configurationStorage }
+        set { shared.applyConfiguration(newValue) }
+    }
 
     /// 只读快照，不弹授权框。示例：`await AuthorizationStatus.snapshot(for: .bluetooth)`
     public static func snapshot(for permission: AuthPermission) async -> AuthPermissionSnapshot {

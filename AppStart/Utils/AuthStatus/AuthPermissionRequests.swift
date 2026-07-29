@@ -12,14 +12,6 @@ import UserNotifications
 
 enum AuthPermissionRequests {
 
-    static func notificationStatus() async -> PermissionStatus {
-        await withCheckedContinuation { continuation in
-            UNUserNotificationCenter.current().getNotificationSettings { settings in
-                continuation.resume(returning: AuthPermissionMapping.notification(settings.authorizationStatus))
-            }
-        }
-    }
-
     static func requestAPNs() async -> PermissionStatus {
         await withCheckedContinuation { continuation in
             UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
@@ -41,7 +33,7 @@ enum AuthPermissionRequests {
     }
 
     static func requestSiri() async -> PermissionStatus {
-        guard AuthorizationStatus.isSiriCapabilityEnabled else { return .restricted }
+        guard AuthorizationStatus.configuration.isSiriCapabilityEnabled else { return .restricted }
         return await AuthPermissionMapping.siri(await requestSiriAuthorization())
     }
 
@@ -83,7 +75,7 @@ enum AuthPermissionRequests {
     }
 
     private static func requestSiriAuthorization() async -> INSiriAuthorizationStatus {
-        guard AuthorizationStatus.isSiriCapabilityEnabled else { return .denied }
+        guard AuthorizationStatus.configuration.isSiriCapabilityEnabled else { return .denied }
         return await withCheckedContinuation { continuation in
             INPreferences.requestSiriAuthorization { status in
                 continuation.resume(returning: status)

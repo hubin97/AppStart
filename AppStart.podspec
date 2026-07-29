@@ -131,6 +131,7 @@ Pod::Spec.new do |s|
     utils.subspec 'AuthStatus' do |au|
       au.source_files = 'AppStart/Utils/AuthStatus'
       au.ios.deployment_target = '14.0'
+      au.frameworks = 'Network'
       au.dependency 'AppStart/Base'
     end
     

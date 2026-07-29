@@ -2,7 +2,7 @@
 //  AuthPermissionMapping.swift
 //  AppStart
 //
-//  系统授权枚举 → `PermissionStatus` 映射。
+//  系统授权枚举 → `PermissionStatus` 映射；部分权限的状态读取（如推送、麦克风）。
 
 import AVFoundation
 import CoreBluetooth
@@ -14,7 +14,16 @@ import UserNotifications
 
 enum AuthPermissionMapping {
 
-    static func notification(_ status: UNAuthorizationStatus) -> PermissionStatus {
+    /// 只读推送授权状态；不弹框。推送无同步 API，需 `getNotificationSettings` 异步查询。
+    static func notificationStatus() async -> PermissionStatus {
+        await withCheckedContinuation { continuation in
+            UNUserNotificationCenter.current().getNotificationSettings { settings in
+                continuation.resume(returning: notification(settings.authorizationStatus))
+            }
+        }
+    }
+
+    private static func notification(_ status: UNAuthorizationStatus) -> PermissionStatus {
         switch status {
         case .authorized, .provisional, .ephemeral:
             return .granted
