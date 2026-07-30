@@ -343,7 +343,10 @@ open class LoggerFormatter: NSObject, DDLogFormatter {
             flag = "🧩"
             break
         }
-        let time = logMessage.timestamp.format(with: "yyyy-MM-dd HH:mm:ss.SSS")
+        let time = logMessage.timestamp.format(
+            with: "yyyy-MM-dd HH:mm:ss.SSS",
+            locale: Locale(identifier: "en_US_POSIX")
+        )
         let message = logMessage.message
         
         switch logMode {

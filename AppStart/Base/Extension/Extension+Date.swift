@@ -81,32 +81,40 @@ extension Extension_Date {
         return Int(CLongLong(round(self.timeIntervalSince1970 * 1000)))
     }
 
-    /// 转指定格式字符串 (注意: 时区地区跟随系统)
-    /// - Parameter format: 格式: yyyy-MM-dd HH:mm:ss / yyyy-MM-dd ...
-    /// - Returns: 字符串
-    public func format(with format: String = "yyyy-MM-dd HH:mm:ss") -> String {
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = format
-        dateFormatter.timeZone = TimeZone.autoupdatingCurrent
-        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
-        return dateFormatter.string(from: self)
+    /// 按自定义 format 转字符串；`timeZone` 跟随系统。
+    ///
+    /// - Parameter locale: 默认 `.autoupdatingCurrent`，适合 UI / 业务展示。
+    ///   仅在以下场景显式传 `Locale(identifier: "en_US_POSIX")`：
+    ///   - 与服务端约定的固定格式（序列化 / 反序列化、签名字段）
+    ///   - 日志、文件名、埋点等需跨用户 locale 稳定输出
+    ///   - format 虽为数字模板，但仍需排除 locale 对符号的干扰时
+    public func format(
+        with format: String = "yyyy-MM-dd HH:mm:ss",
+        locale: Locale = .autoupdatingCurrent
+    ) -> String {
+        formatted(with: format, timeZone: .autoupdatingCurrent, locale: locale)
     }
 
-    /// 转指定格式字符串
-    ///    “GMT”：格林威治标准时间
-    ///    “Asia/Shanghai”：北京时间  东8区
-    ///    “America/New_York”：纽约时间  西5区
-    ///    “Europe/London”：伦敦时间   0
-    ///    “Australia/Sydney”：悉尼时间
-    /// - Parameters:
-    ///   - format: 格式
-    ///   - identifier: 指定时区标识,
-    /// - Returns: String
-    public func format(with format: String = "yyyy-MM-dd HH:mm:ss", identifier: String) -> String {
+    /// 按指定时区与 format 转字符串；`locale` 语义同 `format(with:locale:)`。
+    ///
+    /// 时区示例：`Asia/Shanghai`、`America/New_York`、`GMT`
+    public func format(
+        with format: String = "yyyy-MM-dd HH:mm:ss",
+        identifier: String,
+        locale: Locale = .autoupdatingCurrent
+    ) -> String {
+        formatted(
+            with: format,
+            timeZone: TimeZone(identifier: identifier) ?? .autoupdatingCurrent,
+            locale: locale
+        )
+    }
+
+    private func formatted(with format: String, timeZone: TimeZone, locale: Locale) -> String {
         let dateFormatter = DateFormatter()
-        dateFormatter.timeZone = TimeZone.init(identifier: identifier)
-        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
         dateFormatter.dateFormat = format
+        dateFormatter.timeZone = timeZone
+        dateFormatter.locale = locale
         return dateFormatter.string(from: self)
     }
 }
