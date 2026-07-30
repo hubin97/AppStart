@@ -8,6 +8,7 @@
 
 //单元测试 ✅
 import UIKit
+import ImageIO
 
 //MARK: - global var and methods
 fileprivate typealias Extension_Image = UIImage
@@ -159,62 +160,140 @@ extension Extension_Image {
 }
 
 //MARK: - 图片压缩处理
+
+/// 图片压缩参数：ImageIO 降采样 + JPEG 质量/体积控制。
+public struct ImageCompressionOptions: Sendable {
+
+    /// 最长边像素上限（默认 1440）。
+    public var maxPixelSize: Int
+    /// 目标体积（字节）；`nil` 表示仅按 `initialQuality` 输出。
+    public var maxByteCount: Int?
+    /// JPEG 起始质量；设 `maxByteCount` 时由二分压缩覆盖。
+    public var initialQuality: CGFloat
+    /// 压缩后体积不小于原图时返回原图数据。
+    public var passthroughIfLarger: Bool
+
+    public init(
+        maxPixelSize: Int = 1440,
+        maxByteCount: Int? = nil,
+        initialQuality: CGFloat = 0.85,
+        passthroughIfLarger: Bool = true
+    ) {
+        self.maxPixelSize = maxPixelSize
+        self.maxByteCount = maxByteCount
+        self.initialQuality = initialQuality
+        self.passthroughIfLarger = passthroughIfLarger
+    }
+}
+
 extension Extension_Image {
-    
-    /// 质量压缩 (2分压缩5次)
-    /// 注意 data.count长度判断可能与实际文件占用内存有差异
-    /// - Parameter maxBytes: 指定bytes
-    /// - Returns: 压缩后图片数据
+
+    // MARK: - 图片压缩（对外）
+
+    /// 按最长边像素上限等比缩小；优先 ImageIO 降采样，失败则 Renderer 重绘。
+    public func resize(maxPixelSize: Int) -> UIImage {
+        downsample(maxPixelSize: maxPixelSize, sourceData: encodedSourceData())
+    }
+
+    /// 不改变尺寸，仅按 JPEG 质量二分压缩至不超过 `maxBytes`。
     public func compress(maxBytes: Int) -> Data? {
-        var compression: CGFloat = 1
-        guard var data = self.jpegData(compressionQuality: 0.9) else { return nil }
-        if data.count < maxBytes {
-            return data
+        Self.jpegData(from: self, maxBytes: maxBytes)
+    }
+
+    /// 降采样 + JPEG 输出；参数见 `ImageCompressionOptions`。
+    public func compress(using options: ImageCompressionOptions = .init()) -> Data? {
+        let sourceData = encodedSourceData()
+        let image = downsample(maxPixelSize: options.maxPixelSize, sourceData: sourceData)
+        let data = Self.jpegData(
+            from: image,
+            maxByteCount: options.maxByteCount,
+            initialQuality: options.initialQuality
+        )
+
+        guard let data else { return sourceData }
+
+        if options.passthroughIfLarger, let sourceData, data.count >= sourceData.count {
+            return sourceData
         }
-        var max: CGFloat = 1
-        var min: CGFloat = 0
+        return data
+    }
+
+    // MARK: - 图片压缩（内部）
+
+    private func encodedSourceData() -> Data? {
+        jpegData(compressionQuality: 1.0) ?? pngData()
+    }
+
+    private func downsample(maxPixelSize: Int, sourceData: Data?) -> UIImage {
+        guard maxPixelSize > 0 else { return self }
+        let data = sourceData ?? encodedSourceData()
+        if let data, let downsampled = Self.downsampledImage(from: data, maxPixelSize: maxPixelSize) {
+            return downsampled
+        }
+        return renderScaled(maxPixelSize: maxPixelSize)
+    }
+
+    private func renderScaled(maxPixelSize: Int) -> UIImage {
+        let pixelWidth = size.width * scale
+        let pixelHeight = size.height * scale
+        let longestEdge = max(pixelWidth, pixelHeight)
+        guard longestEdge > CGFloat(maxPixelSize) else { return self }
+
+        let ratio = CGFloat(maxPixelSize) / longestEdge
+        let newSize = CGSize(width: size.width * ratio, height: size.height * ratio)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
+        return renderer.image { _ in
+            draw(in: CGRect(origin: .zero, size: newSize))
+        }
+    }
+
+    private static func jpegData(from image: UIImage, maxByteCount: Int?, initialQuality: CGFloat) -> Data? {
+        let quality = min(max(initialQuality, 0), 1)
+        if let maxByteCount {
+            return jpegData(from: image, maxBytes: maxByteCount)
+        }
+        return image.jpegData(compressionQuality: quality)
+    }
+
+    /// JPEG 质量二分（最多 6 次）；`data.count` 与磁盘体积可能略有差异。
+    private static func jpegData(from image: UIImage, maxBytes: Int) -> Data? {
+        guard var data = image.jpegData(compressionQuality: 0.9) else { return nil }
+        if data.count <= maxBytes { return data }
+
+        var maxQuality: CGFloat = 1
+        var minQuality: CGFloat = 0
         for _ in 0..<6 {
-            compression = (max + min) / 2
-            data = self.jpegData(compressionQuality: compression)!
-            if CGFloat(data.count) < CGFloat(maxBytes){
-                min = compression
+            let compression = (maxQuality + minQuality) / 2
+            guard let next = image.jpegData(compressionQuality: compression) else { break }
+            data = next
+            if data.count < maxBytes {
+                minQuality = compression
             } else if data.count > maxBytes {
-                max = compression
+                maxQuality = compression
             } else {
                 break
             }
         }
         return data
     }
-    
-    /// 尺寸压缩
-    /// - Parameter maxpt: 取最长的边, 跟最大像素点(@2x, pt; 如120*120即maxpt为60)比例调整
-    /// - Returns: 调整处理后结果
-    public func resize(maxpt: CGFloat) -> UIImage? {
-        // 给定尺寸有问题, 不处理
-        if maxpt <= 0 { return self }
-        // 满足要求不处理
-        var imgMax = self.size.width > self.size.height ? self.size.width: self.size.height
-        if imgMax <= maxpt { return self }
-        // 调整到指定大小
-        while imgMax > maxpt {
-            let ratio = maxpt/imgMax
-            let newW  = self.size.width * ratio
-            let newH  = self.size.height * ratio
-            let newSize = CGSize(width: newW, height: newH)
-            UIGraphicsBeginImageContext(newSize)
-            self.draw(in: CGRect(x: 0, y: 0, width: newSize.width, height: newSize.height))
-            let img = UIGraphicsGetImageFromCurrentImageContext()
-            UIGraphicsEndImageContext()
-            imgMax = newW > newH ? newW: newH
-            return img
-        }
-        return self
-    }
-    
-    /// TODO: Luban
-    /// 如果使用更精准的方案, 可参考 鲁班压缩算法 https://github.com/Curzibn/Luban/blob/master/DESCRIPTION.md
 
+    /// ImageIO 按最长边降采样并应用 EXIF 方向；不全尺寸解码，省内存。
+    private static func downsampledImage(from data: Data, maxPixelSize: Int) -> UIImage? {
+        guard maxPixelSize > 0 else { return UIImage(data: data) }
+        let options: [CFString: Any] = [
+            kCGImageSourceShouldCache: false,
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+        ]
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return nil
+        }
+        return UIImage(cgImage: cgImage)
+    }
 }
 
 //MARK: - private mothods
