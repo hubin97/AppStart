@@ -11,70 +11,154 @@ import Network
 // MARK: - Location
 
 /// 内部持有 `CLLocationManager`，避免外部 delegate 协议 + 全局强引用。
+///
+/// 为何 `@MainActor`：本类是 NSObject delegate + continuation 状态机，与 `CLLocationManager` 同生命周期；
+/// CLLocationManager 的 delegate 和 requestWhenInUseAuthorization() 通常都应在主线程；continuation 又要和 delegate 回调严格配对，整类 @MainActor 比在每个方法里散落 MainActor.run 更不容易漏。
+/// 本地网络 Coordinator 只在 `NWBrowser` 回调里切到 main queue，蓝牙 delegate 在 `AuthorizationStatus` 上，模式不同。
+@MainActor
 final class LocationAuthorizationCoordinator: NSObject, CLLocationManagerDelegate {
 
     private let manager = CLLocationManager()
     private var continuation: CheckedContinuation<PermissionStatus, Never>?
+    private var pendingLevel: LocationAuthLevel?
+    private var timeoutTask: Task<Void, Never>?
+    /// 同一时刻只允许一个 request，避免覆盖 continuation 导致泄漏。
+    private var activeRequest: Task<PermissionStatus, Never>?
 
     override init() {
         super.init()
         manager.delegate = self
     }
 
-    func authorizationStatus() -> PermissionStatus {
-        AuthPermissionMapping.location(manager.authorizationStatus)
+    /// 按 `LocationAuthLevel` 解读授权：
+    /// - whenInUse：`.authorizedWhenInUse` / `.authorizedAlways` → `.granted`
+    /// - always：仅 `.authorizedAlways` → `.granted`；仅有 whenInUse 时 → `.notDetermined`（可再 request 升级）
+    func authorizationStatus(for level: LocationAuthLevel) -> PermissionStatus {
+        switch manager.authorizationStatus {
+        case .authorizedAlways:
+            return .granted
+        case .authorizedWhenInUse:
+            return level == .whenInUse ? .granted : .notDetermined
+        case .notDetermined:
+            return .notDetermined
+        case .denied:
+            return .denied
+        case .restricted:
+            return .restricted
+        @unknown default:
+            return .denied
+        }
     }
 
     func request(_ level: LocationAuthLevel) async -> PermissionStatus {
-        let current = authorizationStatus()
+        let current = authorizationStatus(for: level)
         guard current == .notDetermined else { return current }
 
-        return await withCheckedContinuation { continuation in
-            self.continuation = continuation
+        if let activeRequest {
+            return await activeRequest.value
+        }
+
+        let task = Task { await self.performRequest(level) }
+        activeRequest = task
+        defer { activeRequest = nil }
+        return await task.value
+    }
+
+    private func performRequest(_ level: LocationAuthLevel) async -> PermissionStatus {
+        await withCheckedContinuation { continuation in
+            beginPendingRequest(level: level, continuation: continuation)
+
             switch level {
             case .whenInUse:
                 manager.requestWhenInUseAuthorization()
             case .always:
                 manager.requestAlwaysAuthorization()
             }
+
+            // 部分场景系统不回调 delegate（如 always 升级被拒绝/无弹窗）；短延迟兜底，避免 continuation 泄漏。
+            scheduleDeferredCompletion(for: level)
         }
     }
 
+    private func scheduleDeferredCompletion(for level: LocationAuthLevel) {
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            self?.finishIfNeededDeferred(expecting: level)
+        }
+    }
+
+    private func beginPendingRequest(
+        level: LocationAuthLevel,
+        continuation: CheckedContinuation<PermissionStatus, Never>
+    ) {
+        cancelPendingRequest(resumingWith: authorizationStatus(for: pendingLevel ?? level))
+        self.continuation = continuation
+        pendingLevel = level
+
+        timeoutTask?.cancel()
+        timeoutTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 30_000_000_000)
+            await self?.timeoutPendingRequest(expecting: level)
+        }
+    }
+
+    private func cancelPendingRequest(resumingWith result: PermissionStatus) {
+        timeoutTask?.cancel()
+        timeoutTask = nil
+        guard let continuation else { return }
+        continuation.resume(returning: result)
+        self.continuation = nil
+        pendingLevel = nil
+    }
+
+    private func completePendingRequest() {
+        guard let level = pendingLevel, let continuation else { return }
+        timeoutTask?.cancel()
+        timeoutTask = nil
+        continuation.resume(returning: authorizationStatus(for: level))
+        self.continuation = nil
+        pendingLevel = nil
+    }
+
+    @MainActor
+    private func timeoutPendingRequest(expecting level: LocationAuthLevel) {
+        guard pendingLevel == level, continuation != nil else { return }
+        completePendingRequest()
+    }
+
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        finishIfNeeded(for: manager.authorizationStatus)
+        finishIfNeeded()
     }
 
     func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
-        finishIfNeeded(for: status)
+        finishIfNeeded()
     }
 
-    private func finishIfNeeded(for status: CLAuthorizationStatus) {
+    /// delegate 回调且 OS 已脱离 notDetermined 时结束 pending。
+    private func finishIfNeeded() {
         guard continuation != nil else { return }
-        let mapped = AuthPermissionMapping.location(status)
-        guard mapped != .notDetermined else { return }
-        continuation?.resume(returning: mapped)
-        continuation = nil
+        guard manager.authorizationStatus != .notDetermined else { return }
+        completePendingRequest()
+    }
+
+    /// 无 delegate 时的兜底：仅在 OS 已脱离 notDetermined 时结束，避免抢在用户操作前完成。
+    @MainActor
+    private func finishIfNeededDeferred(expecting level: LocationAuthLevel) {
+        guard pendingLevel == level, continuation != nil else { return }
+        guard manager.authorizationStatus != .notDetermined else { return }
+        completePendingRequest()
     }
 }
 
 // MARK: - Local Network
 
-/// 本地网络无同步授权 API；通过 `NWBrowser` 探测并缓存结果（见 TN3179）。
+/// 本地网络无同步授权 API；NWBrowser 探测并缓存结果（TN3179）。
 ///
-/// ### 两条探测路径（结论）
+/// 两条探测路径：
+/// - **首次 request**（可能弹框）：grant 等待 `grantConfirmationWait`（默认 15s），总超时 +10s（默认 25s）
+/// - **静默刷新**（不弹框，如从设置返回）：模块内固定 1s / 5s，响应更快
 ///
-/// | | 首次 request `probe(silent: false)` | 静默 re-probe `probe(silent: true)` |
-/// |--|--|--|
-/// | 触发 | 缓存 `nil` / `.notDetermined`，`request()` | 缓存已 `.granted` / `.denied`，`authorizationStatus()` |
-/// | grant 确认 | `grantConfirmationWait`（默认 **15s**，下限 **5s**） | **1s**（`silentGrantConfirmationWait`） |
-/// | 探测总超时 | `grantConfirmationWait + 10s`（默认 **25s**） | **5s**（`silentProbeTimeout`） |
-/// | 系统弹框 | 可能弹出 | **不再弹出** |
-///
-/// **拒绝**：`PolicyDenied` → 尽快 `.denied`，两路径均不必等满 grant 时长。
-/// **允许**：无点按回调；`.ready` 后再等 grant 时长 → `.granted`（首次慢、刷新快）。
-/// **未点击**（仅首次）：弹框期间可能提前 `.ready`，约 grant 时长后或被推断已授权 → 故首次 grant 偏长。
-///
-/// 首次弹框后用户在 Demo / 设置里再查，走静默路径，故更新明显更快。
+/// 拒绝走 PolicyDenied 较快返回；允许无回调需等待；未点击也可能被推断为 granted，故首次 grant 默认偏长。
 private enum LocalNetworkProbeTiming {
     /// 业务可配 `grantConfirmationWait` 的下限（低于此值易在弹框未操作时误报已授权）。
     static let minimumGrantConfirmationWait: TimeInterval = 5

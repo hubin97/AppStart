@@ -74,69 +74,64 @@ import CoreBluetooth
 
  /// 网络连通性见 `AppStart/Network/Connectivity/CONNECTIVITY_README.md`
 
- 2. 调用示例
+ 2. 选哪个 API？
 
- 模型：先查「系统服务」，再查「App 授权」；业务判断用 `snapshot.isUsable`。
+ | 场景 | 用法 |
+ |------|------|
+ | 只读（UI 展示、预检） | `snapshot(for:mode: .readOnly)` 或省略 mode |
+ | 需要弹窗时再请求 | `snapshot(for:mode: .requestIfNeeded)` |
+ | 跳转系统设置 | `openSettings()` |
 
- // 1. 推荐入口（查询 + 可选请求授权）
+ 对外统一返回 `AuthPermissionSnapshot`（service + authorization）。
+
+ // 1. 常规：用户点击「开启相机」后再 requestIfNeeded
  Task {
-     let camera = await AuthorizationStatus.resolve(.camera, requestIfNeeded: true)
+     let camera = await AuthorizationStatus.snapshot(for: .camera, mode: .requestIfNeeded)
      guard camera.isUsable else {
-         label.text = camera.summaryText   // 如「服务：未开启」或「授权：已拒绝」
+         label.text = camera.summaryText
          return
      }
      // 打开相机…
  }
 
- // 2. 只读快照（不弹授权框）
+ // 2. 只读
  Task {
-     let snap = await AuthorizationStatus.snapshot(for: .bluetooth)
-     // snap.service        → 蓝牙硬件是否开启
-     // snap.authorization  → 蓝牙隐私授权
-     // snap.summaryText    → 「服务：可用 · 授权：已授权」
+     let snap = await AuthorizationStatus.snapshot(for: .bluetooth)   // mode 默认 .readOnly
+     // snap.service / snap.authorization / snap.summaryText
  }
 
- // 3. 各权限类型
- await AuthorizationStatus.resolve(.apns, requestIfNeeded: true)
- await AuthorizationStatus.resolve(.photoLibrary, requestIfNeeded: true)
- await AuthorizationStatus.resolve(.microphone, requestIfNeeded: true)
- await AuthorizationStatus.resolve(.location(.whenInUse), requestIfNeeded: true)
- await AuthorizationStatus.resolve(.location(.always), requestIfNeeded: true)
- await AuthorizationStatus.resolve(.calendar, requestIfNeeded: true)
- await AuthorizationStatus.resolve(.reminder, requestIfNeeded: true)
- await AuthorizationStatus.resolve(.bluetooth, requestIfNeeded: false)  // 蓝牙授权由 CBCentralManager 首次使用时触发
- await AuthorizationStatus.resolve(.localNetwork, requestIfNeeded: true)  // 须 NSLocalNetworkUsageDescription + NSBonjourServices（默认探测 _http._tcp）
+ // 3. 非标准权限（以下差异在「何时调用、会不会弹框」，不在 mode 本身）
+ ///
+ /// | 权限 | 说明 |
+ /// |------|------|
+ /// | 蓝牙 | 只读：`snapshot(for: .bluetooth)`。避免冷启动批量调用（会初始化 Central，可能弹框）。`.requestIfNeeded` **不会**弹隐私框；拒权后只能 openSettings。 |
+ /// | 本地网络 | 只读：`snapshot`（未决定时不探测）。要弹框：`mode: .requestIfNeeded`。可配 `grantConfirmationWait`。 |
+ /// | 定位 | 系统一项权限；Demo/前台用 `.whenInUse`；后台需 `.always`（常需设置升级，勿 UI 拆两个入口） |
+ /// | Siri | 需 configure + Xcode capability。 |
+ /// | 相册 | `.limited` → `.granted`；request 可能三选一弹框。 |
 
- // 4. Siri / 本地网络（App 启动时一次性配置，见 `AuthStatusConfiguration.swift`）
+ // 4. 各权限一行示例（需要弹框的用 .requestIfNeeded）
+ await AuthorizationStatus.snapshot(for: .apns, mode: .requestIfNeeded)
+ await AuthorizationStatus.snapshot(for: .photoLibrary, mode: .requestIfNeeded)
+ await AuthorizationStatus.snapshot(for: .bluetooth)               // 只读蓝牙
+ await AuthorizationStatus.snapshot(for: .localNetwork, mode: .requestIfNeeded)  // 未决定时会探测并可能弹框
+
+ // 5. Siri / 本地网络（App 启动时一次性配置，见 `AuthStatusConfiguration.swift`）
  // AppDelegate.application(_:didFinishLaunchingWithOptions:)
  AuthorizationStatus.configure {
      $0.isSiriCapabilityEnabled = true
      // $0.localNetwork.bonjourServiceTypes = ["_mydevice._tcp"]  // 默认 _http._tcp
-     // $0.localNetwork.grantConfirmationWait = 15  // 弹框场景判定「已授权」前的确认等待（秒）；误报时可调大
+     // $0.localNetwork.grantConfirmationWait = 15  // 弹框场景下判定 granted 前的等待（秒）；越大越不易误判
  }
  Task {
-     let siri = await AuthorizationStatus.resolve(.siri, requestIfNeeded: true)
-     let local = await AuthorizationStatus.resolve(.localNetwork, requestIfNeeded: true)
+     let siri = await AuthorizationStatus.snapshot(for: .siri, mode: .requestIfNeeded)
+     let local = await AuthorizationStatus.snapshot(for: .localNetwork, mode: .requestIfNeeded)
  }
 
- // 5. 跳转系统设置（引导用户开定位/蓝牙/通知等）
+ // 6. 跳转系统设置（引导用户开定位/蓝牙/通知等）
  AuthorizationStatus.shared.openSettings()
 
- // 6. 进阶：仅操作 App 授权层（不含系统服务判断）
- Task {
-     let status = await AuthorizationStatus.status(for: .camera)   // .granted / .denied / …
-     if status == .notDetermined {
-         _ = await AuthorizationStatus.request(.camera)
-     }
- }
-
- // 7. 底层：蓝牙硬件状态（业务层优先用 snapshot(for: .bluetooth)）
- Task {
-     let state = await AuthorizationStatus.bluetoothManagerState()
-     // .poweredOn / .poweredOff / .unauthorized …
- }
-
- // 8. UI 更新请在 MainActor
+ // 7. UI 更新请在 MainActor
  Task { @MainActor in
      let snap = await AuthorizationStatus.snapshot(for: .camera)
      self.detailLabel.text = snap.summaryText
@@ -147,7 +142,7 @@ import CoreBluetooth
 
 public typealias AuthStatus = AuthorizationStatus
 
-/// 权限结果；替代旧版 `Bool?`（`nil` → `.notDetermined`）。
+/// 权限授权结果。
 public enum PermissionStatus: Sendable {
     case granted
     case denied
@@ -194,48 +189,55 @@ public enum AuthServiceState: Sendable, Equatable {
     }
 }
 
-/// 可查询 / 请求的权限与系统服务（配合 `resolve` / `snapshot`；示例见文件顶部注释）。
+/// 查询模式：`readOnly` 只读快照；`requestIfNeeded` 在 `canRequestAuthorization` 时先 request 再读。
+public enum AuthQueryMode: Sendable {
+    case readOnly
+    case requestIfNeeded
+}
+
+/// 可查询 / 请求的权限与系统服务（配合 `snapshot(for:mode:)`；示例见文件顶部注释）。
 public enum AuthPermission: Sendable, Equatable {
     /// 推送通知（APNs）
     case apns
     /// 相机
     case camera
-    /// 相册读写（含 iOS 14+ `.limited` 有限访问，映射为 `.granted`）
+    /// 相册；iOS 14+ `.limited` 映射为 `.granted`；request 可能三选一弹框
     case photoLibrary
     /// 麦克风
     case microphone
-    /// 定位；关联值区分 whenInUse / always
+    /// 定位；系统一项权限，`.location(.whenInUse / .always)` 表业务所需级别，非两个独立开关
     case location(LocationAuthLevel)
     /// 日历
     case calendar
     /// 提醒事项
     case reminder
-    /// Siri（宿主 App 需开启 Siri capability，并在 `AuthorizationStatus.configure` 中设置 `isSiriCapabilityEnabled = true`）
+    /// Siri；需 configure capability；未开启时 snapshot 为 service.disabled、authorization 为 nil
     case siri
-    /// 蓝牙（服务：硬件开关；授权：蓝牙隐私）
+    /// 蓝牙；`.requestIfNeeded` 不弹隐私框；readOnly snapshot 可能初始化 Central
     case bluetooth
-    /// 本地网络（Bonjour / 局域网；须 plist + `configuration.localNetwork`）
+    /// 本地网络；无系统回调，Bonjour 推断；可配 `grantConfirmationWait`；拒权后需 openSettings
     case localNetwork
 }
 
-/// 「服务 + 授权」快照。
-/// - `isUsable`：业务是否可用（服务 OK 且已授权）
-/// - `summaryText`：UI 展示，如「服务：可用 · 授权：已授权」
+/// 「系统服务 + App 授权」快照。
+/// - `isUsable`：服务可用且已授权
+/// - `summaryText`：UI 展示文案
+///
+/// 例外：蓝牙 App 拒权（`state == .unauthorized`）时 `service == nil`，`authorization` 仍可能有值（多为 `.denied`）。
 public struct AuthPermissionSnapshot: Sendable {
-    /// 系统服务是否可用；`nil` 表示该项无独立服务开关。
+    /// 系统服务状态；`nil` 表示无独立开关，或蓝牙 unauthorized 时 state 无法单独表示系统开关
     public let service: AuthServiceState?
-    /// App 隐私授权；服务不可用时通常为 `nil`（无需再查授权）。
+    /// App 授权；通常 service 不可用时为 `nil`；蓝牙 unauthorized 时例外
     public let authorization: PermissionStatus?
 
+    /// 服务层可用（或无服务层）且 App 已授权。
     public var isUsable: Bool {
-        guard service?.isAvailable ?? true else { return false }
-        guard let authorization else { return service?.isAvailable ?? true }
-        return authorization.isGranted
+        (service?.isAvailable ?? true) && authorization?.isGranted == true
     }
 
+    /// 是否可以请求授权
     public var canRequestAuthorization: Bool {
-        guard service?.isAvailable ?? true else { return false }
-        return authorization == .notDetermined
+        (service?.isAvailable ?? true) && authorization == .notDetermined
     }
 
     public var summaryText: String {
@@ -262,30 +264,23 @@ public class AuthorizationStatus: NSObject {
 
     private var configurationStorage = AuthStatusConfiguration()
 
-    /// 当前宿主配置（读写后会同步到内部 Coordinator）。
-    public var configuration: AuthStatusConfiguration {
-        get { configurationStorage }
-        set { applyConfiguration(newValue) }
-    }
-
-    /// 等待 `bluetoothManagerState()` 的 continuation（`.unknown` 时由 delegate 唤醒）
+    /// `.unknown` 时由 `CBCentralManagerDelegate` 唤醒
     var bluetoothStateContinuation: CheckedContinuation<CBManagerState, Never>?
 
     let locationCoordinator = LocationAuthorizationCoordinator()
     let localNetworkCoordinator = LocalNetworkAuthorizationCoordinator()
 
     lazy var centralManager: CBCentralManager = {
-        let options: [String: Any] = [
-            CBCentralManagerOptionShowPowerAlertKey: true,
-            CBCentralManagerScanOptionAllowDuplicatesKey: false
-        ]
-        return CBCentralManager(delegate: self, queue: nil, options: options)
+        CBCentralManager(
+            delegate: self,
+            queue: nil,
+            options: [CBCentralManagerOptionShowPowerAlertKey: false]
+        )
     }()
 
     override init() {
         super.init()
         applyConfiguration(configurationStorage)
-        _ = centralManager
     }
 
     func applyConfiguration(_ config: AuthStatusConfiguration) {
@@ -319,31 +314,13 @@ extension AuthorizationStatus {
         set { shared.applyConfiguration(newValue) }
     }
 
-    /// 只读快照，不弹授权框。示例：`await AuthorizationStatus.snapshot(for: .bluetooth)`
-    public static func snapshot(for permission: AuthPermission) async -> AuthPermissionSnapshot {
-        await AuthPermissionCenter.snapshot(for: permission, on: shared)
-    }
-
-    /// 查询并在需要时请求授权（推荐）。示例：`await AuthorizationStatus.resolve(.camera, requestIfNeeded: true)`
-    @discardableResult
-    public static func resolve(_ permission: AuthPermission, requestIfNeeded: Bool = false) async -> AuthPermissionSnapshot {
-        await AuthPermissionCenter.resolve(permission, requestIfNeeded: requestIfNeeded, on: shared)
-    }
-
-    /// 仅查 App 授权，不弹框。示例：`await AuthorizationStatus.status(for: .camera)`
-    public static func status(for permission: AuthPermission) async -> PermissionStatus {
-        await AuthPermissionCenter.authorizationStatus(for: permission, on: shared)
-    }
-
-    /// 未决定时弹系统授权框。示例：`await AuthorizationStatus.request(.microphone)`
-    @discardableResult
-    public static func request(_ permission: AuthPermission) async -> PermissionStatus {
-        await AuthPermissionCenter.request(permission, on: shared)
-    }
-
-    /// 蓝牙硬件状态（底层）。示例：`await AuthorizationStatus.bluetoothManagerState()` → `.poweredOn`
-    public static func bluetoothManagerState() async -> CBManagerState {
-        await shared.resolveBluetoothManagerState()
+    /// 权限快照（service + authorization）。默认 `mode: .readOnly`。
+    /// 蓝牙/本地网络有特殊行为，见文件顶部注释 // 3.
+    public static func snapshot(
+        for permission: AuthPermission,
+        mode: AuthQueryMode = .readOnly
+    ) async -> AuthPermissionSnapshot {
+        await AuthPermissionCenter.snapshot(for: permission, mode: mode, on: shared)
     }
 
     func resolveBluetoothManagerState() async -> CBManagerState {

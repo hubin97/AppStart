@@ -10,20 +10,69 @@ import CoreLocation
 import Intents
 import Photos
 
-/// 各权限「系统服务 / App 授权」分层：
+/// 权限分层：先查系统服务，再查 App 授权（对外统一 `snapshot(for:mode:)`）。
 ///
-/// | 权限 | 系统服务（优先） | App 授权 |
-/// |------|------------------|----------|
-/// | 推送 / 相册 / 麦克风 / 日历 / 提醒 / 本地网络 | — | 对应隐私授权 |
-/// | 相机 | 是否有摄像头 | 相机隐私 |
-/// | 定位 | 定位服务总开关 | 使用期间 / 始终 |
-/// | Siri | App Siri capability | Siri 隐私 |
-/// | 蓝牙 | 蓝牙硬件是否开启 | 蓝牙隐私 |
+/// | 权限 | 系统服务 | App 授权 |
+/// |------|----------|----------|
+/// | 推送 / 相册 / 麦克风 / 日历 / 提醒 | 无 | 隐私授权 API |
+/// | 本地网络 | 无 | Bonjour 探测推断（见下） |
+/// | 相机 | 硬件是否存在 | 相机隐私 |
+/// | 定位 | 系统定位总开关 | whenInUse / always |
+/// | Siri | Xcode capability | Siri 隐私 |
+/// | 蓝牙 | 系统蓝牙开关 | App 蓝牙隐私（见下，需单独处理） |
+///
+/// ### 实现注意（与通用分层不一致的项）
+///
+/// **通用规则**：`service` 不可用时，`snapshot` 跳过 `authorization`（`canRequestAuthorization == false`）。
+///
+/// **蓝牙**（专用 `bluetoothSnapshot`，勿走通用分支）
+/// - `CBCentralManager.state` 表系统开关，`CBManager.authorization` 表 App 授权，两套 API 不可混读。
+/// - App 拒绝授权时 `state == .unauthorized`，**不等于**系统蓝牙关闭。
+/// - 读 `snapshot` 会初始化 `CBCentralManager`，**可能**弹出隐私框；`.requestIfNeeded` **不会**弹蓝牙隐私框，需实际扫描/连接 BLE 时才会触发。
+/// - `poweredOff` → 仅服务层；`poweredOn` → 服务 + 授权；`unauthorized` → 仅授权层（多为 `.denied`）。
+///
+/// **本地网络**（无系统授权回调，配置见 `AuthStatusConfiguration`）
+/// - 无 `serviceState`；`.notDetermined` 时 `authorizationStatus` 不探测（避免误弹框）；`request` 走 `NWBrowser` 推断。
+/// - 首次 request 与静默刷新超时不同（`grantConfirmationWait` vs 模块内 1s/5s）；拒绝后无法再次弹框，需 `openSettings()`。
+///
+/// **定位**
+/// - 系统定位关闭 → `service.disabled`，不再查 App 授权。
+/// - `.location(.whenInUse)` / `.always` 是业务解读粒度；always 仅在 OS 为 `authorizedAlways` 时 `.granted`，仅有 whenInUse 时对 always 为 `.notDetermined`（升级常需设置，勿 UI 拆两个入口）。
+/// - `.always` 相对 `.whenInUse` 可能多一次系统弹框，plist 键需配套。
+///
+/// **Siri**
+/// - `isSiriCapabilityEnabled == false` 时，`snapshot` 为 `service.disabled` + `authorization == nil`；`authorizationStatus(for: .siri)` 直接返回 `.restricted`。
+///
+/// **相册**
+/// - iOS 14+ `.limited`（选择部分照片）映射为 `.granted`；`request` 可能出现三选一弹框。
 enum AuthPermissionCenter {
 
     // MARK: - Snapshot
 
-    static func snapshot(for permission: AuthPermission, on host: AuthorizationStatus) async -> AuthPermissionSnapshot {
+    /// 对外统一入口：`readOnly` 只读；`requestIfNeeded` 在可请求时先 request 再读。
+    static func snapshot(
+        for permission: AuthPermission,
+        mode: AuthQueryMode,
+        on host: AuthorizationStatus
+    ) async -> AuthPermissionSnapshot {
+        switch mode {
+        case .readOnly:
+            return await makeSnapshot(for: permission, on: host)
+        case .requestIfNeeded:
+            let before = await makeSnapshot(for: permission, on: host)
+            if before.canRequestAuthorization {
+                await request(permission, on: host)
+            }
+            return await makeSnapshot(for: permission, on: host)
+        }
+    }
+
+    /// 只读快照（不含 request）；蓝牙走 `bluetoothSnapshot`。
+    private static func makeSnapshot(for permission: AuthPermission, on host: AuthorizationStatus) async -> AuthPermissionSnapshot {
+        // 蓝牙需合并 state + authorization，不适用下方「service 不可用则跳过 authorization」规则。
+        if permission == .bluetooth {
+            return await bluetoothSnapshot(on: host)
+        }
         let service = await serviceState(for: permission, on: host)
         let authorization: PermissionStatus?
         if let service, !service.isAvailable {
@@ -34,26 +83,12 @@ enum AuthPermissionCenter {
         return AuthPermissionSnapshot(service: service, authorization: authorization)
     }
 
-    static func resolve(
-        _ permission: AuthPermission,
-        requestIfNeeded: Bool,
-        on host: AuthorizationStatus
-    ) async -> AuthPermissionSnapshot {
-        if requestIfNeeded {
-            let before = await snapshot(for: permission, on: host)
-            if before.canRequestAuthorization {
-                await request(permission, on: host)
-            }
-        }
-        return await snapshot(for: permission, on: host)
-    }
-
     // MARK: - Authorization
 
     /// 仅读取 App 隐私授权状态，**不会**触发系统授权弹框。
     ///
-    /// 适合在 UI 展示、进入页面前预检、或决定「是否需要调用 `request`」时使用。
-    /// 对外入口：`AuthorizationStatus.status(for:)` / `snapshot(for:)`（后者还会查 `serviceState`）。
+    /// 适合在 UI 展示、进入页面前预检时使用（不含 service 层时请用 `makeSnapshot` 的 `authorization` 字段）。
+    /// 业务侧请用 `AuthorizationStatus.snapshot(for:mode:)`。
     ///
     /// | 权限 | 底层 API | 弹框 | 备注 |
     /// |------|----------|------|------|
@@ -76,19 +111,21 @@ enum AuthPermissionCenter {
             return AuthPermissionMapping.photoLibrary(PHPhotoLibrary.authorizationStatus(for: .readWrite))
         case .microphone:
             return AuthPermissionMapping.microphone()
-        case .location:
-            return host.locationCoordinator.authorizationStatus()
+        case .location(let level):
+            return await MainActor.run {
+                host.locationCoordinator.authorizationStatus(for: level)
+            }
         case .calendar:
             return AuthPermissionMapping.eventStore(for: .event)
         case .reminder:
             return AuthPermissionMapping.eventStore(for: .reminder)
         case .siri:
-            guard host.configuration.isSiriCapabilityEnabled else { return .restricted }
+            guard AuthorizationStatus.configuration.isSiriCapabilityEnabled else { return .restricted }
             return AuthPermissionMapping.siri(INPreferences.siriAuthorizationStatus())
         case .bluetooth:
             return AuthPermissionMapping.bluetooth(CBManager.authorization)
         case .localNetwork:
-            host.localNetworkCoordinator.apply(host.configuration.localNetwork)
+            host.localNetworkCoordinator.apply(AuthorizationStatus.configuration.localNetwork)
             return await host.localNetworkCoordinator.authorizationStatus()
         }
     }
@@ -96,7 +133,7 @@ enum AuthPermissionCenter {
     /// 请求 App 隐私授权；**仅当当前为 `.notDetermined` 时**才会调用系统请求 API 并**可能弹出系统授权框**。
     ///
     /// 已为 `.granted` / `.denied` / `.restricted` 时直接返回当前状态，不再弹框。
-    /// 对外入口：`AuthorizationStatus.request(_:)`；推荐业务用 `resolve(_:requestIfNeeded:)` 先查快照再决定是否请求。
+    /// 对外入口：`AuthorizationStatus.snapshot(for:mode: .requestIfNeeded)`。
     ///
     /// | 权限 | 请求 API | 可能弹框 | 备注 |
     /// |------|----------|----------|------|
@@ -135,7 +172,7 @@ enum AuthPermissionCenter {
         case .bluetooth:
             return AuthPermissionMapping.bluetooth(CBManager.authorization)
         case .localNetwork:
-            host.localNetworkCoordinator.apply(host.configuration.localNetwork)
+            host.localNetworkCoordinator.apply(AuthorizationStatus.configuration.localNetwork)
             return await host.localNetworkCoordinator.request()
         }
     }
@@ -152,7 +189,7 @@ enum AuthPermissionCenter {
     /// | 相机 | 是否存在摄像头 | 否 | `.unsupported` = 无硬件 |
     /// | 定位 | `CLLocationManager.locationServicesEnabled()` | 否 | `.disabled` = 系统定位总开关关闭，需引导去设置 |
     /// | Siri | `configuration.isSiriCapabilityEnabled` | 否 | `.disabled` = 未在 Xcode 开启 capability |
-    /// | 蓝牙 | `CBCentralManager.state`（经 `resolveBluetoothManagerState`） | 否* | `.disabled` = 蓝牙未开；`*` 读取 state 会用到已创建的 `centralManager`，**不**在此弹隐私框，但首次初始化 `CBCentralManager`  elsewhere 可能触发蓝牙授权 |
+    /// | 蓝牙 | `CBCentralManager.state`（经 `resolveBluetoothManagerState`） | 否* | `.disabled` = 系统蓝牙关；完整分层见 `bluetoothSnapshot`；`*` 首次读 state 会初始化 `CBCentralManager` 并可能弹隐私框 |
     /// | 其余 | — | — | 返回 `nil`，仅看授权层 |
     ///
     /// UX 建议：`service` 不可用时优先展示「去设置开启定位/蓝牙」等，勿再调用 `request`（`canRequestAuthorization` 已为 false）。
@@ -171,18 +208,46 @@ enum AuthPermissionCenter {
         }
     }
 
-    private static func bluetoothServiceState(_ managerState: CBManagerState) -> AuthServiceState {
+    private static func bluetoothServiceState(_ managerState: CBManagerState) -> AuthServiceState? {
         switch managerState {
         case .poweredOn:
             return .available
-        case .poweredOff:
+        case .poweredOff, .resetting:
             return .disabled
         case .unsupported:
             return .unsupported
-        case .unknown, .resetting, .unauthorized:
+        case .unknown:
             return .unknown
+        case .unauthorized:
+            // App 拒权时 state 为 .unauthorized，系统蓝牙仍可能开启；单独 serviceState 无法表达，见 bluetoothSnapshot。
+            return nil
         @unknown default:
             return .unknown
+        }
+    }
+
+    /// 蓝牙专用 snapshot：poweredOff 仅服务层；poweredOn 查两层；unauthorized 仅授权层（多为 denied）。
+    private static func bluetoothSnapshot(on host: AuthorizationStatus) async -> AuthPermissionSnapshot {
+        let state = await host.resolveBluetoothManagerState()
+        switch state {
+        case .poweredOff, .resetting:
+            return AuthPermissionSnapshot(service: .disabled, authorization: nil)
+        case .unsupported:
+            return AuthPermissionSnapshot(service: .unsupported, authorization: nil)
+        case .unknown:
+            return AuthPermissionSnapshot(service: .unknown, authorization: nil)
+        case .unauthorized:
+            return AuthPermissionSnapshot(
+                service: nil,
+                authorization: AuthPermissionMapping.bluetooth(CBManager.authorization)
+            )
+        case .poweredOn:
+            return AuthPermissionSnapshot(
+                service: .available,
+                authorization: AuthPermissionMapping.bluetooth(CBManager.authorization)
+            )
+        @unknown default:
+            return AuthPermissionSnapshot(service: .unknown, authorization: nil)
         }
     }
 }
