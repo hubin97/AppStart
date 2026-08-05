@@ -267,7 +267,8 @@ public class AuthorizationStatus: NSObject {
     /// `.unknown` 时由 `CBCentralManagerDelegate` 唤醒
     var bluetoothStateContinuation: CheckedContinuation<CBManagerState, Never>?
 
-    let locationCoordinator = LocationAuthorizationCoordinator()
+    @MainActor
+    lazy var locationCoordinator = LocationAuthorizationCoordinator()
     let localNetworkCoordinator = LocalNetworkAuthorizationCoordinator()
 
     lazy var centralManager: CBCentralManager = {
