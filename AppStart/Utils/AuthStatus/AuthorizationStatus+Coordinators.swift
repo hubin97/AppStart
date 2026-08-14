@@ -12,8 +12,8 @@ import Network
 
 /// 内部持有 `CLLocationManager`，避免外部 delegate 协议 + 全局强引用。
 ///
-/// 为何 `@MainActor`：本类是 NSObject delegate + continuation 状态机，与 `CLLocationManager` 同生命周期；
-/// CLLocationManager 的 delegate 和 requestWhenInUseAuthorization() 通常都应在主线程；continuation 又要和 delegate 回调严格配对，整类 @MainActor 比在每个方法里散落 MainActor.run 更不容易漏。
+/// 状态（continuation / pendingLevel）需在主线程串行维护；`CLLocationManager` 与 request 也应在主线程使用。
+/// `CLLocationManagerDelegate` 在类型上非 MainActor，故 delegate 方法标 `nonisolated`，内部 `Task { @MainActor in }` 跳回，避免 Swift 6 data race。
 /// 本地网络 Coordinator 只在 `NWBrowser` 回调里切到 main queue，蓝牙 delegate 在 `AuthorizationStatus` 上，模式不同。
 @MainActor
 final class LocationAuthorizationCoordinator: NSObject, CLLocationManagerDelegate {
@@ -81,7 +81,7 @@ final class LocationAuthorizationCoordinator: NSObject, CLLocationManagerDelegat
     }
 
     private func scheduleDeferredCompletion(for level: LocationAuthLevel) {
-        Task { @MainActor [weak self] in
+        Task { [weak self] in
             try? await Task.sleep(nanoseconds: 800_000_000)
             self?.finishIfNeededDeferred(expecting: level)
         }
@@ -96,9 +96,9 @@ final class LocationAuthorizationCoordinator: NSObject, CLLocationManagerDelegat
         pendingLevel = level
 
         timeoutTask?.cancel()
-        timeoutTask = Task { [weak self] in
+        timeoutTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 30_000_000_000)
-            await self?.timeoutPendingRequest(expecting: level)
+            self?.timeoutPendingRequest(expecting: level)
         }
     }
 
@@ -120,18 +120,21 @@ final class LocationAuthorizationCoordinator: NSObject, CLLocationManagerDelegat
         pendingLevel = nil
     }
 
-    @MainActor
     private func timeoutPendingRequest(expecting level: LocationAuthLevel) {
         guard pendingLevel == level, continuation != nil else { return }
         completePendingRequest()
     }
 
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        finishIfNeeded()
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        Task { @MainActor [weak self] in
+            self?.finishIfNeeded()
+        }
     }
 
-    func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
-        finishIfNeeded()
+    nonisolated func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
+        Task { @MainActor [weak self] in
+            self?.finishIfNeeded()
+        }
     }
 
     /// delegate 回调且 OS 已脱离 notDetermined 时结束 pending。
@@ -142,7 +145,6 @@ final class LocationAuthorizationCoordinator: NSObject, CLLocationManagerDelegat
     }
 
     /// 无 delegate 时的兜底：仅在 OS 已脱离 notDetermined 时结束，避免抢在用户操作前完成。
-    @MainActor
     private func finishIfNeededDeferred(expecting level: LocationAuthLevel) {
         guard pendingLevel == level, continuation != nil else { return }
         guard manager.authorizationStatus != .notDetermined else { return }
@@ -280,8 +282,9 @@ final class LocalNetworkAuthorizationCoordinator {
 
             browser.start(queue: .main)
 
+            let fallbackStatus = self.cachedStatus
             DispatchQueue.main.asyncAfter(deadline: .now() + timeout) {
-                finish(self.cachedStatus ?? .notDetermined)
+                finish(fallbackStatus ?? .notDetermined)
             }
         }
     }

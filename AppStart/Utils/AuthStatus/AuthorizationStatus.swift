@@ -267,6 +267,7 @@ public class AuthorizationStatus: NSObject {
     /// `.unknown` 时由 `CBCentralManagerDelegate` 唤醒
     var bluetoothStateContinuation: CheckedContinuation<CBManagerState, Never>?
 
+    //FIXME: @MainActor 类型不能在 AuthorizationStatus.init 里同步创建；改为 lazy，首次主线程访问时再初始化。版本 bump 至 0.2.1。
     @MainActor
     lazy var locationCoordinator = LocationAuthorizationCoordinator()
     let localNetworkCoordinator = LocalNetworkAuthorizationCoordinator()

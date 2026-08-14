@@ -98,8 +98,12 @@ public final class BlePeripheralConnection: NSObject {
                 self?.central?.isPhysicallyConnected(self?.peripheral) == true
             }
             handler.onPhaseChange = { [weak self] phase in
+                guard let self else { return }
                 if case .stopped(.exhausted) = phase {
-                    self?.updateState(.timedOut)
+                    self.updateState(.timedOut)
+                    // 重连耗尽后取消系统层挂起的 connect，避免设备再次上线时被动连上
+                    self.central?.performDisconnect(self.peripheral)
+                    self.central?.unregisterConnectionIfNeeded(self)
                 }
             }
             reconnectHandler = handler

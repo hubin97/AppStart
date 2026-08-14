@@ -339,7 +339,12 @@ extension BleCentral: CBCentralManagerDelegate {
         didDisconnectPeripheral peripheral: CBPeripheral,
         error: Error?
     ) {
-        logger.log("已断开: \(peripheral.name ?? "未知")")
+        let name = peripheral.name ?? "未知"
+        if let error {
+            logger.log("意外断开: \(name), \(error.localizedDescription)")
+        } else {
+            logger.log("主动断开: \(name)")
+        }
         connectionRegistry[peripheral.identifier]?.handleDisconnected(error: error)
     }
 
