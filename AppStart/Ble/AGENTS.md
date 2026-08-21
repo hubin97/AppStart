@@ -28,4 +28,5 @@
 
 ## 权威文档
 
-- `BLE_README.md`
+- `BLE_README.md` — 实现细节与代码走读
+- `BLE_ROADMAP.md` — 特性拓展迭代规划（Release / 优先级 / 边界）

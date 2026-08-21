@@ -2,6 +2,8 @@
 
 基于 Swift Concurrency（async/await + AsyncStream）的 CoreBluetooth 封装，支持多页面共享连接、**多产品协议**并存。
 
+> **迭代规划**：特性拓展路线、Release 划分与框架/业务边界见 [`BLE_ROADMAP.md`](BLE_ROADMAP.md)。
+
 ## 功能
 
 - 扫描 / 连接 / 断开 / 多设备
@@ -583,8 +585,11 @@ App: try await connection.write(c0Data)
 
 ```
 Ble/
+├── BLE_README.md               # 实现细节、代码走读（本文档）
+├── BLE_ROADMAP.md              # 特性拓展迭代规划
+├── AGENTS.md                   # 模块约束补充
 ├── BleEnums.swift              # 公共类型、错误码
-├── BleConfiguration.swift      # 协议配置模型
+├── BleConfiguration.swift    # 协议配置模型
 ├── BlePeripheralMatching.swift
 ├── BleAdvDataParser.swift      # 广播解析 + 推荐匹配策略
 ├── BleProductRegistry.swift    # 多产品 resolve
