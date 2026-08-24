@@ -54,11 +54,14 @@ struct MyPumpParser: BleAdvDataParser {
 }
 
 enum BleProducts {
+    // 方式 A：GATT 写在 Configuration（静态产品）
     static let pump = BleConfiguration(
         matching: BleParserValidatedMatchingStrategy(parser: MyPumpParser()),
-        serviceUUIDs: [CBUUID(string: "AF00")!],
-        writeCharUUID: CBUUID(string: "AF01"),
-        notifyCharUUID: CBUUID(string: "AF02"),
+        gattProfile: BleGattProfile(
+            serviceUUIDs: [CBUUID(string: "AF00")],
+            writeCharUUID: CBUUID(string: "AF01"),
+            notifyCharUUID: CBUUID(string: "AF02")
+        ),
         writeQueue: .serialized(
             ackMatcher: BleByteAckMatcher(indices: [0, 1, 3]),
             defaultTimeout: 3,
@@ -68,6 +71,9 @@ enum BleProducts {
         debugLog: true,
         logTag: "[Ble/Pump]"
     )
+
+    // 方式 B：GATT 由 parser 的 BleProvidesGattProfile 在 connect 时 merge（同协议多子型号）
+    // static let pump = BleConfiguration(matching: ..., parser: MyPumpParser(), ...)
 
     static let all: [BleConfiguration] = [pump]
 }
@@ -225,8 +231,7 @@ connecting → connected → ready(BleChannelReadyInfo)
 |------|----------|----------|
 | `matching` | ✅ 过滤广播 | — |
 | `advParser` | ✅ 解析 MAC 等 | — |
-| `serviceUUIDs` | ❌ **不用于系统 scan 过滤** | ✅ discoverServices |
-| `readCharUUID` / `writeCharUUID` / `notifyCharUUID` | — | ✅ discoverCharacteristics |
+| `gattProfile` | ❌ **不用于系统 scan 过滤** | ✅ discoverServices / discoverCharacteristics |
 | `writeQueue` | — | ✅ direct 或 serialized |
 | `reconnect` | — | ✅ 自动重连策略 |
 | `debugLog` / `logTag` | — | ✅ 日志开关与 tag |
@@ -238,9 +243,40 @@ connecting → connected → ready(BleChannelReadyInfo)
 
 **`BleAckMatcher` / `BleByteAckMatcher`：**
 
-- 协议方法 `matches(command:response:)` 判断 Notify 是否为当前队首指令的应答
-- 默认 `[0, 1, 3]` 比对帧头 + CID（如 Momcozy `AA 55 … C0`）
-- 复杂协议在 App 层实现自定义 `BleAckMatcher`
+- 写队列**只**调用 `ackMatcher.matches(command:response:)`，不在传输层做 payload 相等/heuristic 过滤
+- **ACK vs 设备主动 Notify 的区分**由 App 层 Matcher 完成（如 Pump 要求 `byte[2]==0x01`）
+- `BleByteAckMatcher`：按字节下标比对（默认 `[0, 1, 3]`），**仅示例**；弱匹配无法区分 REQ 形上报
+- 产品专属 Matcher 在 **App 层** 实现；完整产品示例见 [AppTemplate BLE 文档](../../../AppTemplate/AppTemplate/Modules/Main/Func/BLE/BLE_README.md)
+
+**串行写 + `await connection.write()`** — 等 ACK 再发下一条（指令链在 App 层编排）：
+
+```swift
+// .serialized 模式：每条 write 排队，Matcher 匹配 Notify 后 resume
+if let ack = try await connection.write(stepAData) {
+    if shouldContinue(with: ack.response) {   // App 层解析，框架不管语义
+        _ = try await connection.write(stepBData)
+    }
+}
+```
+
+- `write()` 返回 `BleWriteAck?`（`request` / `response`）；`.direct` 模式为 `nil`
+- `timeout` 可 per-call 传入；省略则用 configuration 的 `defaultTimeout`
+- 顺序、条件分支、组包/解包均在 App 层用 `async` 串联；框架只保证串行与 ACK 匹配
+
+### 动态 GattProfile（connect merge）
+
+Parser 解析结果实现 `BleProvidesGattProfile`，`connect` 时 overlay merge 进 `gattProfile`：
+
+```swift
+// parsedData.bleGattProfile 覆盖 configuration.gattProfile 中非 nil 字段
+let connection = try await BleSession.shared.connect(discovery: discovery)
+// 内部使用 discovery.effectiveConfiguration
+```
+
+- **静态产品**：`BleConfiguration(gattProfile: BleGattProfile(...))`
+- **动态子型号**：Config 留 `gattProfile: .empty`，parser 实现 `BleProvidesGattProfile`（需保证 connect 时有 parsedData）
+
+工具类型：`BleGattProfile`、`BleUUID.matches`（16-bit ↔ 128-bit Base UUID 等价）
 
 ---
 
@@ -411,7 +447,7 @@ didUpdateValueFor
   → writeQueue?.handleCharacteristicUpdate()  // ACK 匹配
 ```
 
-改 Notify 处理逻辑时必须兼顾两路：UI 需要全量推送，队列只认 ACK。
+改 Notify 处理逻辑时必须兼顾两路：UI 需要全量推送，队列只认 `ackMatcher` 判定为 ACK 的包。
 
 #### 断开
 
@@ -433,7 +469,7 @@ beginServiceDiscovery
 
 - `pendingServiceCount` / `completedServiceCount` 计数，全部完成后一次性 ready
 - `didEmitReady` 防止多 service 回调重复触发
-- 配置了 `writeCharUUID` 但未找到 → `writeCharacteristicNotFound`
+- 配置了 `gattProfile.writeCharUUID` 但未找到 → `writeCharacteristicNotFound`
 
 ---
 
@@ -549,7 +585,7 @@ App: try await connection.write(c0Data)
 3. **Notify 双消费** — UI 订阅与 ACK 队列共用 `didUpdateValueFor`
 4. **matching 与 parser 重复逻辑** — 推荐 `BleParserValidatedMatchingStrategy` 共用同一 parser，避免两处规则不一致
 5. **LocalName** — 优先广播里的 LocalName，`peripheral.name` 可能滞后为空
-6. **ACK 误判** — 相同指令重复发 + 超时；设备主动上报与 ACK 同帧头；需自定义 matcher 或业务防抖
+6. **ACK 误判** — 使用弱默认 `BleByteAckMatcher`；设备主动 REQ 形上报与写应答同 CID；App 层实现专属 `BleAckMatcher`（如 Pump CT=ACK）
 7. **扫描 stream 取消** — `onTermination` 自动 `stopScanning()`；页面销毁时取消 Task 即可
 8. **连接复用** — 同一 peripheral 已在 connecting/connected/ready 时 `connect` 复用句柄，不会重复 discover
 
@@ -571,9 +607,14 @@ App: try await connection.write(c0Data)
 |------|------|
 | `BleConfiguration` | 单款产品完整协议 |
 | `BleParserValidatedMatchingStrategy` | 推荐扫描匹配（parser + 可选 names） |
+| `BleByteAckMatcher` | 按字节下标 ACK 匹配 |
+| `BleGattProfile` | 连接时 GATT 覆盖（子型号动态 UUID） |
+| `BleUUID` | CBUUID 等价比较 |
 | `BlePrefixMatchingStrategy` | 名称前缀 / 厂商数据前缀匹配 |
 | `AnyBleAdvDataParser` | 解析器类型擦除 |
 | `BleCompositeMatchingStrategy` | 多产品 OR 匹配 |
+| `BleCharacteristicUpdate` | Notify 特征值变更 |
+| `BleWriteAck` | 串行写 ACK 结果（request + response） |
 | `BleDiscovery` | 扫描结果（含 `configuration`、`parsedData`、`displayName`） |
 | `BleCentral` | 扫描、连接 |
 | `BleSession` | 注册表 + Session |
@@ -589,7 +630,9 @@ Ble/
 ├── BLE_ROADMAP.md              # 特性拓展迭代规划
 ├── AGENTS.md                   # 模块约束补充
 ├── BleEnums.swift              # 公共类型、错误码
-├── BleConfiguration.swift    # 协议配置模型
+├── BleConfiguration.swift      # 协议配置模型
+├── BleGattProfile.swift          # 动态 GATT merge
+├── BleUUID.swift                 # UUID 等价比较
 ├── BlePeripheralMatching.swift
 ├── BleAdvDataParser.swift      # 广播解析 + 推荐匹配策略
 ├── BleProductRegistry.swift    # 多产品 resolve

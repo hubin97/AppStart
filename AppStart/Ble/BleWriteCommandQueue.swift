@@ -22,7 +22,7 @@ final class BleWriteCommandQueue {
     /// 每条指令独立的超时 Task
     private var timeoutTasks: [UUID: Task<Void, Never>] = [:]
     /// requestId → 挂起等待 ACK 的 continuation
-    private var pendingContinuations: [UUID: CheckedContinuation<Void, Error>] = [:]
+    private var pendingContinuations: [UUID: CheckedContinuation<BleWriteAck?, Error>] = [:]
     private let lock = NSLock()
     private let logger: BleLogger
     var onTimeout: ((BleWriteCommand) -> Void)?
@@ -40,8 +40,9 @@ final class BleWriteCommandQueue {
         self.logger = logger
     }
 
-    /// 入队并挂起，直到 ACK 确认或超时/失败。
-    func enqueue(_ command: BleWriteCommand) async throws {
+    /// 入队并挂起，直到 ACK 确认或超时/失败；返回匹配到的 Notify ACK  payload。
+    @discardableResult
+    func enqueue(_ command: BleWriteCommand) async throws -> BleWriteAck? {
         try await withCheckedThrowingContinuation { continuation in
             lock.lock()
             queue.enqueue(command)
@@ -51,10 +52,14 @@ final class BleWriteCommandQueue {
         }
     }
 
-    /// Notify 回包：用 ackMatcher 判断是否为队首指令的应答
+    /// Notify 回包：仅当 `ackMatcher` 判定为队首指令应答时完成该条写。
     func handleCharacteristicUpdate(_ data: Data) {
         lock.lock()
-        guard let head = queue.peek(), ackMatcher.matches(command: head.data, response: data) else {
+        guard let head = queue.peek() else {
+            lock.unlock()
+            return
+        }
+        guard ackMatcher.matches(command: head.data, response: data) else {
             lock.unlock()
             return
         }
@@ -66,7 +71,7 @@ final class BleWriteCommandQueue {
     /// writeValue 回调：withResponse 模式在此完成；withoutResponse 仍等 Notify ACK
     func handleWriteConfirmation(for characteristic: CBCharacteristic, error: Error?) {
         lock.lock()
-        guard let head = queue.peek(), head.writeChar.uuid == characteristic.uuid else {
+        guard let head = queue.peek(), BleUUID.matches(characteristic.uuid, head.writeChar.uuid) else {
             lock.unlock()
             return
         }
@@ -151,7 +156,7 @@ final class BleWriteCommandQueue {
         } else {
             logger.log("指令 ACK(\(source)) \(head.requestId)")
         }
-        continuation?.resume()
+        continuation?.resume(returning: BleWriteAck(request: head.data, response: response ?? Data()))
     }
 
     private func failHead(with error: Error) {

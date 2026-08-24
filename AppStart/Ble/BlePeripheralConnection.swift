@@ -55,7 +55,7 @@ public final class BlePeripheralConnection: NSObject {
     public func characteristicUpdates(matching uuid: CBUUID? = nil) async -> AsyncStream<BleCharacteristicUpdate> {
         let stream = await updateBus.stream()
         guard let uuid else { return stream }
-        // 多 Notify 特征时按 UUID 过滤（例如只关心 configuration.notifyCharUUID）
+        // 多 Notify 特征时按 UUID 过滤（例如只关心 gattProfile.notifyCharUUID）
         return AsyncStream { continuation in
             Task {
                 for await update in stream {
@@ -181,24 +181,26 @@ public final class BlePeripheralConnection: NSObject {
     }
 
     /// 写指令：有写队列时走串行 ACK 流程，否则直接 writeValue。
+    /// - Returns: 串行队列模式下匹配到的 ACK；`.direct` 或无 Notify 应答时为 nil。
+    @discardableResult
     public func write(
         _ data: Data,
         type: CBCharacteristicWriteType = .withoutResponse,
         timeout: TimeInterval? = nil
-    ) async throws {
+    ) async throws -> BleWriteAck? {
         guard let writeChar else { throw BleError.writeCharacteristicNotFound }
-        if let writeQueue {
-            let command = BleWriteCommand(
-                peripheral: peripheral,
-                writeChar: writeChar,
-                data: data,
-                writeType: type,
-                timeout: timeout ?? defaultWriteTimeout()
-            )
-            try await writeQueue.enqueue(command)
-            return
+        guard let writeQueue else {
+            peripheral.writeValue(data, for: writeChar, type: type)
+            return nil
         }
-        peripheral.writeValue(data, for: writeChar, type: type)
+        let command = BleWriteCommand(
+            peripheral: peripheral,
+            writeChar: writeChar,
+            data: data,
+            writeType: type,
+            timeout: timeout ?? defaultWriteTimeout()
+        )
+        return try await writeQueue.enqueue(command)
     }
 
     private func defaultWriteTimeout() -> TimeInterval {

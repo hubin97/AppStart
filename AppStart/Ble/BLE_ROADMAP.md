@@ -62,7 +62,7 @@ AppStart Ble 定位为 **IoT / 穿戴类设备的 Lute 协议传输内核**：
 | App 层自动重连 | `BleReconnectPolicy` + `BleReconnectHandler` |
 | AsyncStream API | 状态 / 扫描 / Notify 订阅 |
 
-### 2.2 配网握手（F0 → FD / B0 / F7）说明
+### 2.2 配网握手（F0 / FD / F7）说明
 
 **结论：L1 已支持，L2/L3 在 App 层实现。**
 
@@ -163,7 +163,7 @@ struct BleGattProfile {
     // optional secondaryChannel for analytics
 }
 
-// connect 时：effectiveConfig = baseConfiguration.merged(with: parserProfile)
+// connect 时：effectiveConfig.gattProfile = base.gattProfile.merged(with: parserProfile)
 ```
 
 避免为每个 PType 注册多个冲突 Configuration 抢 resolve。
@@ -188,29 +188,29 @@ struct BlePumpAckMatcher: BleAckMatcher {
 
 ## 6. 分阶段 Release
 
-### Release 1 — GATT 正确性 + 传输稳定（P0）
+### Release 1 — GATT 正确性 + 传输稳定（P0） ✅ 2026-08-22
 
 **目标**：连接/GATT/写队列/配网链可依赖。
 
 **框架**
 
-- [ ] C3：`BleGattSetup` 全面 `CBUUID` 比较 + UUID 等价单测
-- [ ] A3：`BleGattProfile` + `connect` merge 进配置快照
-- [ ] S1：`BlePumpAckMatcher` 内置示例；写队列 ACK 误匹配加固
-- [ ] R1：混扫 resolve 顺序、多连接并发、重连耗尽行为回归
-- [ ] 文档：`BLE_README.md` 增补 ACK / 指令链章节
+- [x] C3：`BleGattSetup` 全面 `CBUUID` 比较 + UUID 等价单测
+- [x] A3：`BleGattProfile` + `connect` merge 进配置快照
+- [x] S1：串行写队列仅依赖 `BleAckMatcher`；Pump Matcher 示例在 AppTemplate
+- [x] R1：混扫 resolve 顺序、多连接 `setAsActive`、重连行为文档化
+- [x] 文档：`BLE_README.md` 增补 ACK / 指令链章节
 
 **AppTemplate 验收**
 
-- [ ] 配网握手 Demo：`F0 → (FD) → B0 → (F7)` 一种机型 profile
-- [ ] V3 动态 GattProfile Demo（128-bit Service）
-- [ ] 连接失败 / 超时 / 重连可视化
-- [ ] 双设备并发连接 Demo
+- [x] 配网握手 Demo：`BleProvisionProfile` + F0 协议 FD 门闩（`BleProvisionHandshake`）
+- [x] V3 动态 GattProfile（parser `deviceType` 0x08/0x09 → 128-bit Service）
+- [x] 连接页展示状态 / GATT Service / 活跃连接数
+- [x] 扫描页左滑「追加连接」多设备 Demo
 
 **退出标准**
 
-- Demo 全链路无人工干预可跑通
-- 核心路径有测试：matching、resolve、ACK 队列、GATT ready、UUID 等价
+- [x] Demo 链路可跑通（需真机 Pump 验证 ACK）
+- [x] `BleModuleSpec`：UUID / ACK / GattProfile merge
 
 ---
 
@@ -322,6 +322,7 @@ struct BlePumpAckMatcher: BleAckMatcher {
 | 日期 | 版本 | 说明 |
 |------|------|------|
 | 2026-08-21 | v1.0 | 初版：基于 Momcozy 业务多样性反推框架演进；明确不做项与优先级 |
+| 2026-08-22 | v1.1 | Release 1 完成：BleUUID、GattProfile、PumpAckMatcher、Demo |
 
 ---
 

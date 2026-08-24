@@ -25,11 +25,14 @@ public struct BleReconnectPolicy {
 }
 
 /// ACK 匹配器：判断 Notify 回包是否为当前写指令的应答。
+/// 产品协议差异（REQ/ACK、CID、序列号等）应在此实现，写队列不做额外 heuristic。
 public protocol BleAckMatcher {
     func matches(command: Data, response: Data) -> Bool
 }
 
 /// 按指定字节下标逐位比对 command 与 response。
+/// 默认下标 `[0, 1, 3]` 仅作示例；生产环境请在 App 层实现产品专属 `BleAckMatcher`
+///（如 Pump 要求 CT=ACK，见 AppTemplate `BlePumpProtocol.swift`）。
 public struct BleByteAckMatcher: BleAckMatcher {
     public let indices: [Int]
 
@@ -60,14 +63,8 @@ public enum BleWriteQueueConfiguration {
 public struct BleConfiguration {
     /// 扫描阶段过滤外设的匹配策略
     public var matching: any BlePeripheralMatching
-    /// 连接后发现的目标 Service UUID 列表（仅 GATT 阶段使用，不用于系统扫描过滤）
-    public var serviceUUIDs: [CBUUID]
-    /// GATT 读特征；发现后自动 readValue
-    public var readCharUUID: CBUUID?
-    /// GATT 写特征；`write(_:)` 目标
-    public var writeCharUUID: CBUUID?
-    /// GATT Notify 特征；发现后 setNotifyValue(true)
-    public var notifyCharUUID: CBUUID?
+    /// GATT 发现目标（Service / 特征 UUID）；空 profile 表示发现全部 Service
+    public var gattProfile: BleGattProfile
     public var reconnect: BleReconnectPolicy
     public var writeQueue: BleWriteQueueConfiguration
     public var discoverDescriptors: Bool
@@ -78,10 +75,7 @@ public struct BleConfiguration {
 
     public init(
         matching: any BlePeripheralMatching = BleDefaultMatchingStrategy(),
-        serviceUUIDs: [CBUUID] = [],
-        readCharUUID: CBUUID? = nil,
-        writeCharUUID: CBUUID? = nil,
-        notifyCharUUID: CBUUID? = nil,
+        gattProfile: BleGattProfile = .empty,
         reconnect: BleReconnectPolicy = .disabled,
         writeQueue: BleWriteQueueConfiguration = .direct,
         discoverDescriptors: Bool = false,
@@ -90,10 +84,7 @@ public struct BleConfiguration {
         logTag: String = "[Ble] "
     ) {
         self.matching = matching
-        self.serviceUUIDs = serviceUUIDs
-        self.readCharUUID = readCharUUID
-        self.writeCharUUID = writeCharUUID
-        self.notifyCharUUID = notifyCharUUID
+        self.gattProfile = gattProfile
         self.reconnect = reconnect
         self.writeQueue = writeQueue
         self.discoverDescriptors = discoverDescriptors
@@ -104,10 +95,7 @@ public struct BleConfiguration {
 
     public init<P: BleAdvDataParser>(
         matching: any BlePeripheralMatching = BleDefaultMatchingStrategy(),
-        serviceUUIDs: [CBUUID] = [],
-        readCharUUID: CBUUID? = nil,
-        writeCharUUID: CBUUID? = nil,
-        notifyCharUUID: CBUUID? = nil,
+        gattProfile: BleGattProfile = .empty,
         reconnect: BleReconnectPolicy = .disabled,
         writeQueue: BleWriteQueueConfiguration = .direct,
         discoverDescriptors: Bool = false,
@@ -117,10 +105,7 @@ public struct BleConfiguration {
     ) {
         self.init(
             matching: matching,
-            serviceUUIDs: serviceUUIDs,
-            readCharUUID: readCharUUID,
-            writeCharUUID: writeCharUUID,
-            notifyCharUUID: notifyCharUUID,
+            gattProfile: gattProfile,
             reconnect: reconnect,
             writeQueue: writeQueue,
             discoverDescriptors: discoverDescriptors,

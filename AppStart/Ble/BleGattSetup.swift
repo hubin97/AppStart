@@ -34,7 +34,7 @@ final class BleGattSetup {
         self.logger = logger
     }
 
-    /// 入口：按 configuration.serviceUUIDs 发现服务（空则发现全部）
+    /// 入口：按 gattProfile.serviceUUIDs 发现服务（空则发现全部）
     func beginServiceDiscovery(on peripheral: CBPeripheral) {
         pendingServiceCount = 0
         completedServiceCount = 0
@@ -42,7 +42,8 @@ final class BleGattSetup {
         readyService = nil
         setupError = nil
         didEmitReady = false
-        let uuids = configuration.serviceUUIDs.isEmpty ? nil : configuration.serviceUUIDs
+        let serviceUUIDs = configuration.gattProfile.serviceUUIDs ?? []
+        let uuids = serviceUUIDs.isEmpty ? nil : serviceUUIDs
         peripheral.discoverServices(uuids)
     }
 
@@ -56,9 +57,16 @@ final class BleGattSetup {
                 NSError(domain: "BleGattSetup", code: 1, userInfo: [NSLocalizedDescriptionKey: "未发现服务"])
             ))
         }
-        pendingServiceCount = services.count
-        let charUUIDs = [configuration.readCharUUID, configuration.writeCharUUID, configuration.notifyCharUUID].compactMap { $0 }
-        for service in services {
+        let targetServices = filterServices(services)
+        guard !targetServices.isEmpty else {
+            return Result(writeChar: nil, readyService: nil, error: BleError.channelSetupFailed(
+                NSError(domain: "BleGattSetup", code: 2, userInfo: [NSLocalizedDescriptionKey: "未匹配到目标服务"])
+            ))
+        }
+        pendingServiceCount = targetServices.count
+        let profile = configuration.gattProfile
+        let charUUIDs = [profile.readCharUUID, profile.writeCharUUID, profile.notifyCharUUID].compactMap { $0 }
+        for service in targetServices {
             if charUUIDs.isEmpty {
                 peripheral.discoverCharacteristics(nil, for: service)
             } else {
@@ -85,19 +93,20 @@ final class BleGattSetup {
 
     /// 遍历特征：read → setNotify → 记录 writeChar
     private func process(characteristics: [CBCharacteristic], peripheral: CBPeripheral, service: CBService) {
+        let profile = configuration.gattProfile
         for characteristic in characteristics {
             if characteristic.properties.contains(.read),
-               configuration.readCharUUID == nil || characteristic.uuid == configuration.readCharUUID {
+               BleUUID.matches(characteristic.uuid, configured: profile.readCharUUID) {
                 logger.log("读取特征: \(characteristic.uuid)")
                 peripheral.readValue(for: characteristic)
             }
             if characteristic.properties.contains(.notify),
-               configuration.notifyCharUUID == nil || characteristic.uuid == configuration.notifyCharUUID {
+               BleUUID.matches(characteristic.uuid, configured: profile.notifyCharUUID) {
                 logger.log("订阅通知: \(characteristic.uuid)")
                 peripheral.setNotifyValue(true, for: characteristic)
             }
             if characteristic.properties.contains(.write) || characteristic.properties.contains(.writeWithoutResponse),
-               configuration.writeCharUUID == nil || characteristic.uuid == configuration.writeCharUUID {
+               BleUUID.matches(characteristic.uuid, configured: profile.writeCharUUID) {
                 logger.log("记录写特征: \(characteristic.uuid)")
                 writeChar = characteristic
                 readyService = service
@@ -108,6 +117,15 @@ final class BleGattSetup {
         }
     }
 
+    /// 若配置了 serviceUUIDs，仅处理与之等价的服务。
+    private func filterServices(_ services: [CBService]) -> [CBService] {
+        let serviceUUIDs = configuration.gattProfile.serviceUUIDs ?? []
+        guard !serviceUUIDs.isEmpty else { return services }
+        return services.filter { service in
+            serviceUUIDs.contains { BleUUID.matches(service.uuid, $0) }
+        }
+    }
+
     /// 所有 service 特征发现完毕，产出 ready 或 error（仅触发一次）
     private func finalizeIfNeeded(peripheral: CBPeripheral) -> Result? {
         guard completedServiceCount >= pendingServiceCount, !didEmitReady else { return nil }
@@ -115,7 +133,7 @@ final class BleGattSetup {
         if let setupError {
             return Result(writeChar: nil, readyService: nil, error: setupError)
         }
-        if configuration.writeCharUUID != nil, writeChar == nil {
+        if configuration.gattProfile.writeCharUUID != nil, writeChar == nil {
             return Result(writeChar: nil, readyService: nil, error: BleError.writeCharacteristicNotFound)
         }
         return Result(writeChar: writeChar, readyService: readyService ?? peripheral.services?.first, error: nil)

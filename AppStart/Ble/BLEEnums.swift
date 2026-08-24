@@ -83,6 +83,17 @@ public struct BleCharacteristicUpdate {
     public let data: Data
 }
 
+/// 串行写队列完成后的 ACK（`.direct` 模式无 ACK，返回 nil）。
+public struct BleWriteAck {
+    public let request: Data
+    public let response: Data
+
+    public init(request: Data, response: Data) {
+        self.request = request
+        self.response = response
+    }
+}
+
 public enum BleReconnectResult {
     case success
     case exhausted
@@ -104,7 +115,7 @@ public enum BleError: Error {
     case notConnected
 
     /// 未找到可写特征。
-    /// 场景：GATT 发现完成但配置的 `writeCharUUID` 不存在；或尚未 ready 就调用 `write`。
+    /// 场景：GATT 发现完成但 `gattProfile.writeCharUUID` 不存在；或尚未 ready 就调用 `write`。
     case writeCharacteristicNotFound
 
     /// 连接超时。 BLE 建连 + GATT ready 常见默认在 8～15 秒；

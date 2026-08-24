@@ -76,18 +76,26 @@ public final class BleSession {
 
     // MARK: - 连接
 
-    /// 从扫描结果连接；`discovery.configuration` 须已由 resolve 写入（App 唯一推荐入口）。
-    /// - Parameter timeout: 建连 + GATT ready 总超时，默认 15 秒；超时抛出 `BleError.connectionTimeout`。
-    public func connect(discovery: BleDiscovery, timeout: TimeInterval = 15) async throws -> BlePeripheralConnection {
-        guard let configuration = discovery.configuration else {
+    /// 从扫描结果连接；使用 `effectiveConfiguration`（含 GattProfile merge）。
+    /// - Parameters:
+    ///   - timeout: 建连 + GATT ready 总超时，默认 15 秒。
+    ///   - setAsActive: 是否设为 `activeConnection`；多设备时可设为 false 保留原主连接。
+    public func connect(
+        discovery: BleDiscovery,
+        timeout: TimeInterval = 15,
+        setAsActive: Bool = true
+    ) async throws -> BlePeripheralConnection {
+        guard let effectiveConfiguration = discovery.effectiveConfiguration else {
             throw BleError.configurationNotResolved
         }
         let connection = try await central.connect(
             to: discovery.peripheral,
-            configuration: configuration,
+            configuration: effectiveConfiguration,
             timeout: timeout
         )
-        activeConnection = connection
+        if setAsActive {
+            activeConnection = connection
+        }
         return connection
     }
 }
