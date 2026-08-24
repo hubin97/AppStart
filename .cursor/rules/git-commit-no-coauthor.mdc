@@ -1,0 +1,12 @@
+---
+description: Git 提交禁止附加 Cursor Co-authored-by 标记
+alwaysApply: true
+---
+
+# Git 提交
+
+创建或修改 git commit 时：
+
+- **禁止**在 commit message 中加入 `Co-authored-by: Cursor <cursoragent@cursor.com>` 或任何 Cursor / AI 共著 trailer
+- 提交说明只保留人类可读的 summary / body，不附加 Agent 归因脚注
+- 若发现 message 中已有上述行，提交前必须删除
