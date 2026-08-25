@@ -29,7 +29,7 @@ public final class BlePeripheralConnection: NSObject {
     /// 配置为 `.serialized` 时启用，负责 ACK 匹配与串行写
     private var writeQueue: BleWriteCommandQueue?
     private var reconnectHandler: BleReconnectHandler?
-    /// GATT 就绪后缓存的写特征，供 `write(_:)` 使用
+    /// GATT 就绪后缓存的主 write 特征，供 `write(_:)` 使用
     private var writeChar: CBCharacteristic?
     /// `connect` 挂起等待 `.ready` 的 continuation
     private var connectContinuation: CheckedContinuation<Void, Error>?
@@ -44,29 +44,7 @@ public final class BlePeripheralConnection: NSObject {
         }
     }
 
-    /// 订阅连接状态机；新订阅者会立即收到当前状态（replayLatest）。
-    /// 用法：`for await state in await connection.states() { ... }`
-    public func states() async -> AsyncStream<BlePeripheralState> {
-        await stateBus.stream()
-    }
-
-    /// 订阅 Notify 回包；`uuid == nil` 时按主通道 notify UUID 过滤（未配置则全量）。
-    /// 用法：`for await update in await connection.characteristicUpdates() { ... }`
-    public func characteristicUpdates(matching uuid: CBUUID? = nil) async -> AsyncStream<BleCharacteristicUpdate> {
-        let stream = await updateBus.stream()
-        let filterUUID = uuid ?? configuration.gattProfile.notifyCharUUID
-        guard let filterUUID else { return stream }
-        return AsyncStream { continuation in
-            Task {
-                for await update in stream {
-                    if BleUUID.matches(update.characteristic.uuid, filterUUID) {
-                        continuation.yield(update)
-                    }
-                }
-                continuation.finish()
-            }
-        }
-    }
+    // MARK: - Init
 
     init(peripheral: CBPeripheral, configuration: BleConfiguration, logger: BleLogger, central: BleCentral) {
         self.peripheral = peripheral
@@ -109,6 +87,34 @@ public final class BlePeripheralConnection: NSObject {
             reconnectHandler = handler
         }
     }
+
+    // MARK: - Streams
+
+    /// 订阅连接状态机；新订阅者会立即收到当前状态（replayLatest）。
+    /// 用法：`for await state in await connection.states() { ... }`
+    public func states() async -> AsyncStream<BlePeripheralState> {
+        await stateBus.stream()
+    }
+
+    /// 订阅 Notify 回包；`uuid == nil` 时按主通道 notify UUID 过滤（未配置则全量）。
+    /// 用法：`for await update in await connection.characteristicUpdates() { ... }`
+    public func characteristicUpdates(matching uuid: CBUUID? = nil) async -> AsyncStream<BleCharacteristicUpdate> {
+        let stream = await updateBus.stream()
+        let filterUUID = uuid ?? configuration.gattProfile.notifyCharUUID
+        guard let filterUUID else { return stream }
+        return AsyncStream { continuation in
+            Task {
+                for await update in stream {
+                    if BleUUID.matches(update.characteristic.uuid, filterUUID) {
+                        continuation.yield(update)
+                    }
+                }
+                continuation.finish()
+            }
+        }
+    }
+
+    // MARK: - Connection
 
     /// 重置连接状态，在每次 `connect` 开始前调用。
     func beginWaitingForReady() {
@@ -180,38 +186,6 @@ public final class BlePeripheralConnection: NSObject {
         central?.performDisconnect(peripheral)
     }
 
-    /// 写指令：有写队列时走串行 ACK 流程，否则直接 writeValue。
-    /// - Returns: 串行队列模式下匹配到的 ACK；`.direct` 或无 Notify 应答时为 nil。
-    @discardableResult
-    public func write(
-        _ data: Data,
-        type: CBCharacteristicWriteType = .withoutResponse,
-        timeout: TimeInterval? = nil
-    ) async throws -> BleWriteAck? {
-        guard let writeChar else { throw BleError.writeCharacteristicNotFound }
-        guard let writeQueue else {
-            peripheral.writeValue(data, for: writeChar, type: type)
-            return nil
-        }
-        let command = BleWriteCommand(
-            peripheral: peripheral,
-            writeChar: writeChar,
-            data: data,
-            writeType: type,
-            timeout: timeout ?? defaultWriteTimeout()
-        )
-        return try await writeQueue.enqueue(command)
-    }
-
-    private func defaultWriteTimeout() -> TimeInterval {
-        switch configuration.writeQueue {
-        case .serialized(_, let timeout, _):
-            return timeout
-        case .direct:
-            return 3
-        }
-    }
-
     private func handleConnectionTimeout() {
         updateState(.timedOut)
         connectContinuation?.resume(throwing: BleError.connectionTimeout)
@@ -228,6 +202,114 @@ public final class BlePeripheralConnection: NSObject {
         connectContinuation?.resume()
         connectContinuation = nil
         reconnectHandler?.notifyConnected()
+    }
+
+    /// GATT 发现完成：记录写特征、订阅 Notify、推进状态到 `.ready`。
+    private func finishGattSetup(_ result: BleGattSetup.Result) {
+        if let error = result.error {
+            updateState(.failed(error))
+            connectContinuation?.resume(throwing: BleError.channelSetupFailed(error))
+            connectContinuation = nil
+            return
+        }
+        writeChar = result.writeChar
+        if let service = result.readyService {
+            let info = BleChannelReadyInfo(peripheral: peripheral, service: service)
+            updateState(.ready(info))
+        }
+        completeConnectIfNeeded()
+    }
+
+    // MARK: - Write
+
+    /// 写指令至主通道 write 特征；有写队列时走串行 ACK，否则直接 writeValue。
+    /// - Returns: 串行队列模式下匹配到的 ACK；`.direct` 或无 Notify 应答时为 nil。
+    @discardableResult
+    public func write(
+        _ data: Data,
+        type: CBCharacteristicWriteType = .withoutResponse,
+        timeout: TimeInterval? = nil
+    ) async throws -> BleWriteAck? {
+        guard let writeChar else { throw BleError.writeCharacteristicNotFound }
+        return try await performWrite(data, to: writeChar, type: type, timeout: timeout)
+    }
+
+    /// 写指令至指定 write 特征 UUID。目标即已绑定的主 `writeChar` 时走 ACK 队列；否则直接 `writeValue`。
+    /// 附加写忽略 `timeout`（不等待协议 ACK）。
+    @discardableResult
+    public func write(
+        _ data: Data,
+        to writeUUID: CBUUID,
+        type: CBCharacteristicWriteType = .withoutResponse,
+        timeout: TimeInterval? = nil
+    ) async throws -> BleWriteAck? {
+        guard let target = writeCharacteristic(matching: writeUUID) else {
+            throw BleError.writeCharacteristicNotFound
+        }
+        if let writeChar, BleUUID.matches(target.uuid, writeChar.uuid) {
+            return try await performWrite(data, to: target, type: type, timeout: timeout)
+        }
+        peripheral.writeValue(data, for: target, type: type)
+        return nil
+    }
+
+    private func performWrite(
+        _ data: Data,
+        to characteristic: CBCharacteristic,
+        type: CBCharacteristicWriteType,
+        timeout: TimeInterval?
+    ) async throws -> BleWriteAck? {
+        guard let writeQueue else {
+            peripheral.writeValue(data, for: characteristic, type: type)
+            return nil
+        }
+        let command = BleWriteCommand(
+            peripheral: peripheral,
+            writeChar: characteristic,
+            data: data,
+            writeType: type,
+            timeout: timeout ?? defaultWriteTimeout()
+        )
+        return try await writeQueue.enqueue(command)
+    }
+
+    /// 不另缓存：discover 完成后特征已挂在 `CBPeripheral.services` 上。
+    private func writeCharacteristic(matching writeUUID: CBUUID) -> CBCharacteristic? {
+        guard let services = peripheral.services else { return nil }
+        for service in services {
+            guard let characteristics = service.characteristics else { continue }
+            if let found = characteristics.first(where: {
+                BleUUID.matches($0.uuid, writeUUID)
+                    && ($0.properties.contains(.write) || $0.properties.contains(.writeWithoutResponse))
+            }) {
+                return found
+            }
+        }
+        return nil
+    }
+
+    private func defaultWriteTimeout() -> TimeInterval {
+        switch configuration.writeQueue {
+        case .serialized(_, let timeout, _):
+            return timeout
+        case .direct:
+            return 3
+        }
+    }
+
+    /// 附加 Profile 的 Notify 不进入主串行 ACK 队列。
+    private func shouldFeedWriteQueue(characteristic: CBCharacteristic) -> Bool {
+        guard writeQueue != nil else { return false }
+        for profile in configuration.supplementaryGattProfiles {
+            if let notify = profile.notifyCharUUID,
+               BleUUID.matches(characteristic.uuid, notify) {
+                return false
+            }
+        }
+        if let primaryNotify = configuration.gattProfile.notifyCharUUID {
+            return BleUUID.matches(characteristic.uuid, primaryNotify)
+        }
+        return true
     }
 }
 
@@ -261,38 +343,7 @@ extension BlePeripheralConnection: CBPeripheralDelegate {
         }
     }
 
-    /// 附加 Profile 的 Notify 不进入主串行 ACK 队列。
-    private func shouldFeedWriteQueue(characteristic: CBCharacteristic) -> Bool {
-        guard writeQueue != nil else { return false }
-        for profile in configuration.supplementaryGattProfiles {
-            if let notify = profile.notifyCharUUID,
-               BleUUID.matches(characteristic.uuid, notify) {
-                return false
-            }
-        }
-        if let primaryNotify = configuration.gattProfile.notifyCharUUID {
-            return BleUUID.matches(characteristic.uuid, primaryNotify)
-        }
-        return true
-    }
-
     public func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
         writeQueue?.handleWriteConfirmation(for: characteristic, error: error)
-    }
-
-    /// GATT 发现完成：记录写特征、订阅 Notify、推进状态到 `.ready`。
-    private func finishGattSetup(_ result: BleGattSetup.Result) {
-        if let error = result.error {
-            updateState(.failed(error))
-            connectContinuation?.resume(throwing: BleError.channelSetupFailed(error))
-            connectContinuation = nil
-            return
-        }
-        writeChar = result.writeChar
-        if let service = result.readyService {
-            let info = BleChannelReadyInfo(peripheral: peripheral, service: service)
-            updateState(.ready(info))
-        }
-        completeConnectIfNeeded()
     }
 }

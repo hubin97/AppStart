@@ -1,5 +1,5 @@
 ---
-description: Git 提交禁止附加 Cursor Co-authored-by 标记
+description: Git 提交禁止附加 Cursor Co-authored-by；提交后必须剥离环境注入
 alwaysApply: true
 ---
 
@@ -10,3 +10,14 @@ alwaysApply: true
 - **禁止**在 commit message 中加入 `Co-authored-by: Cursor <cursoragent@cursor.com>` 或任何 Cursor / AI 共著 trailer
 - 提交说明只保留人类可读的 summary / body，不附加 Agent 归因脚注
 - 若发现 message 中已有上述行，提交前必须删除
+
+## 提交后必做（环境会再注入）
+
+Cursor 会在 `git commit` / `git commit --amend` **成功后自动追加** `Co-authored-by: Cursor <cursoragent@cursor.com>`。只写「不要加」不够。
+
+每次用户要求提交 git 后：
+
+1. `git log -1 --format=full` 检查 message
+2. 若含上述 trailer：用 `git commit-tree HEAD^{tree} -p HEAD^` 按原 message（去掉 trailer）新建 commit，再 `git reset --soft` 到该 SHA
+3. **不要**用 `git commit --amend` 剥 trailer（会被再次注入）
+4. 再 `git log -1 --format=full` 确认已消失

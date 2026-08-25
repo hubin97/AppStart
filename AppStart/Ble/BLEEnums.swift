@@ -115,7 +115,8 @@ public enum BleError: Error {
     case notConnected
 
     /// 未找到可写特征。
-    /// 场景：GATT 发现完成但 `gattProfile.writeCharUUID` 不存在；或尚未 ready 就调用 `write`。
+    /// 场景：GATT 发现完成但 `gattProfile.writeCharUUID` 不存在；尚未 ready 就 `write`；
+    /// 或 `write(_:to:)` 的 UUID 在已发现特征中无对应可写特征。
     case writeCharacteristicNotFound
 
     /// 连接超时。 BLE 建连 + GATT ready 常见默认在 8～15 秒；

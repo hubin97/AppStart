@@ -94,7 +94,7 @@ AppStart Ble 定位为 **IoT / 穿戴类设备的 Lute 协议传输内核**：
 | **A3** | 同协议多子型号（动态 GattProfile） | **P0** | R1 | Parser 输出 Profile，`connect` 时 merge 进快照 |
 | **S1** | 串行写 + ACK 稳定化 | **P0** | R1 | 误匹配防护、Pump ACK Matcher 示例、配网链 Demo |
 | **R1** | 混扫 / 多连接 / 重连打稳 | **P0** | R1 | bugfix、边界测试、文档 |
-| **C2** | 可选副通道（analytics） | **P1** | R2 | 主 transport + 副通道 direct write；非 OTA 并行 |
+| **C2** | 可选副通道（analytics） | **P1** | R2 | 主 transport + 附加 Notify；附加写 `write(_:to:)`（非主 UUID 等同 `.direct`） |
 | **O1** | OTA 协作扩展点 | **P2** | R3 | 双 Configuration、suspendReconnect、暴露 peripheral |
 | **E1** | State Restoration hook | **P3** | R4 | Live Activity 等特化场景；Momcozy 接入前可不做了 |
 | ~~B3~~ | ~~按 MAC 查连接~~ | — | — | **删除**；业务 Coordinator |
@@ -118,7 +118,7 @@ AppStart Ble 定位为 **IoT / 穿戴类设备的 Lute 协议传输内核**：
 |------|------|
 | 日常控制（C0/F0/B0） | 主通道 `.serialized` + ACK（**保持现状**） |
 | 配网指令链 | 顺序 `await write()`（**保持现状**） |
-| 主控制 + 埋点并行（M5 类） | 主通道 serialized + **副通道 `.direct`**（R2） |
+| 主控制 + 埋点并行（M5 类） | 主通道 serialized + 附加 Notify；附加写 `write(_:to:)` 或 `.direct`（R2） |
 | OTA | **独立 connect 会话** + OTA Configuration（R3） |
 
 **不做**：每种 channel 各一套完整 priority 队列矩阵。
@@ -216,6 +216,7 @@ struct BlePumpAckMatcher: BleAckMatcher {
 - [x] C2：`BleConfiguration.supplementaryGattProfiles`（附加 GATT，connect 时由 parser merge）
   - 不参与主 ACK 队列
   - 附加 Notify 不进 `writeQueue`
+- [x] `write(_:to:)`：按已发现特征 UUID 写；非主 write 直接 `writeValue`，不占控制面 ACK
 
 **AppTemplate 验收**
 

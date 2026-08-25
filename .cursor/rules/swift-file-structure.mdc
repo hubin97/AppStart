@@ -1,0 +1,33 @@
+---
+description: Swift 文件内 MARK 分块 — 按职责分区，协议 extension 只放协议方法
+globs: "**/*.swift"
+alwaysApply: false
+---
+
+# Swift 文件结构
+
+类型体用 `// MARK: -` 按**职责**分区，不要用访问控制当标题。
+
+推荐顺序：
+
+1. 嵌套类型 / 存储属性
+2. `Init`
+3. 公开 API，按功能（如 `Streams`、`Connection`、`Write`、`Discovery`）
+4. 该功能的私有辅助紧挨对应公开方法，不要扫到文件末尾一个 `MARK: - Private`
+5. 协议 conformance：独立 `extension`，**只放协议要求的方法**
+
+```swift
+// ✅ GOOD — helper 跟功能走，delegate 只留回调
+// MARK: - Write
+public func write(...) { ... }
+private func performWrite(...) { ... }
+
+// MARK: - CBPeripheralDelegate
+extension Foo: CBPeripheralDelegate {
+    func peripheral(_ :didDiscoverServices:) { ... }
+}
+
+// ❌ BAD — 私有 helper 塞进协议 extension；或一个 Private 收纳全部私有方法
+```
+
+不要为 1～2 个方法硬拆 `extension`。搬移代码时注释随逻辑一起走。

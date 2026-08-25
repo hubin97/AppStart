@@ -65,7 +65,7 @@ public struct BleConfiguration {
     public var matching: any BlePeripheralMatching
     /// GATT 发现目标（Service / 特征 UUID）；空 profile 表示发现全部 Service
     public var gattProfile: BleGattProfile
-    /// 附加 GATT（多 Service 发现 / 额外 Notify）；不参与主 `write(_:)` ACK 队列，由 App 层编排
+    /// 附加 GATT（多 Service 发现 / 额外 Notify）；附加 Notify / `write(_:to:)` 非主 write 不参与主 ACK 队列
     public var supplementaryGattProfiles: [BleGattProfile]
     public var reconnect: BleReconnectPolicy
     public var writeQueue: BleWriteQueueConfiguration

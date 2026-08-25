@@ -292,7 +292,17 @@ for await update in await connection.characteristicUpdates(matching: secondaryNo
 
 - **静态产品**：注册时写死 `gattProfile`
 - **动态子型号**：注册默认值 + parser 实现上述协议（需 connect 时有 parsedData）
-- `supplementaryGattProfiles`：仅 discover / subscribe，不参与主 `write(_:)` ACK
+- `supplementaryGattProfiles`：仅 discover / subscribe；附加 Notify 不参与主 `write(_:)` ACK
+
+**控制面 / 数据面（写策略）**
+
+| 面 | API | ACK 队列 |
+|----|-----|----------|
+| 控制面（主通道） | `write(_:)` | ✅ serialized 时匹配主 Notify |
+| 数据面 / 附加写 | `write(_:to:)` | 不进主 ACK（直接 writeValue） |
+| 裸 GATT | `peripheral.writeValue(...)` | 框架不介入 |
+
+`write(_:to:)` 按已发现 GATT 特征 UUID 查找；目标即主 write 时与 `write(_:)` 相同，否则不占用控制面队列。
 
 工具类型：`BleGattProfile`、`BleUUID.matches`（16-bit ↔ 128-bit Base UUID 等价）
 
@@ -452,10 +462,12 @@ performConnect (Central)
   → completeConnectIfNeeded()    // resume connect 的 continuation
 ```
 
-#### 写入 `write(_:type:timeout:)`
+#### 写入 `write(_:)` / `write(_:to:)`
 
-- 有 writeQueue → 构造 `BleWriteCommand` → `enqueue` 挂起直到 ACK
-- 无 writeQueue → 直接 `peripheral.writeValue`
+- **主通道**：`write(_:)` → 就绪时缓存的主 `writeChar`；serialized 时等主 Notify ACK
+- **指定特征**：`write(_:to:)` → 已发现的 `peripheral.services` 中按 UUID 查找（`BleUUID.matches`）
+- 目标即主 write → 与 `write(_:)` 相同（可走写队列）
+- 其它 UUID → 直接 `writeValue`，不进主 ACK 队列
 
 #### Notify 双消费（重要）
 
