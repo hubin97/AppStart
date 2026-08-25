@@ -65,6 +65,8 @@ public struct BleConfiguration {
     public var matching: any BlePeripheralMatching
     /// GATT 发现目标（Service / 特征 UUID）；空 profile 表示发现全部 Service
     public var gattProfile: BleGattProfile
+    /// 附加 GATT（多 Service 发现 / 额外 Notify）；不参与主 `write(_:)` ACK 队列，由 App 层编排
+    public var supplementaryGattProfiles: [BleGattProfile]
     public var reconnect: BleReconnectPolicy
     public var writeQueue: BleWriteQueueConfiguration
     public var discoverDescriptors: Bool
@@ -76,6 +78,7 @@ public struct BleConfiguration {
     public init(
         matching: any BlePeripheralMatching = BleDefaultMatchingStrategy(),
         gattProfile: BleGattProfile = .empty,
+        supplementaryGattProfiles: [BleGattProfile] = [],
         reconnect: BleReconnectPolicy = .disabled,
         writeQueue: BleWriteQueueConfiguration = .direct,
         discoverDescriptors: Bool = false,
@@ -85,6 +88,7 @@ public struct BleConfiguration {
     ) {
         self.matching = matching
         self.gattProfile = gattProfile
+        self.supplementaryGattProfiles = supplementaryGattProfiles
         self.reconnect = reconnect
         self.writeQueue = writeQueue
         self.discoverDescriptors = discoverDescriptors
@@ -96,6 +100,7 @@ public struct BleConfiguration {
     public init<P: BleAdvDataParser>(
         matching: any BlePeripheralMatching = BleDefaultMatchingStrategy(),
         gattProfile: BleGattProfile = .empty,
+        supplementaryGattProfiles: [BleGattProfile] = [],
         reconnect: BleReconnectPolicy = .disabled,
         writeQueue: BleWriteQueueConfiguration = .direct,
         discoverDescriptors: Bool = false,
@@ -106,6 +111,7 @@ public struct BleConfiguration {
         self.init(
             matching: matching,
             gattProfile: gattProfile,
+            supplementaryGattProfiles: supplementaryGattProfiles,
             reconnect: reconnect,
             writeQueue: writeQueue,
             discoverDescriptors: discoverDescriptors,

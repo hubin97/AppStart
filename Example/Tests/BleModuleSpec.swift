@@ -92,6 +92,51 @@ class BleModuleSpec: QuickSpec {
                 expect(BleUUID.matches(merged.gattProfile.serviceUUIDs![0], CBUUID(string: "AF00"))) == true
                 expect(BleUUID.matches(merged.gattProfile.writeCharUUID!, CBUUID(string: "AF01"))) == true
             }
+
+            it("merges primary and supplementary from parsed data") {
+                struct StubProfile: BleProvidesGattProfile, BleProvidesSupplementaryGattProfiles {
+                    var bleGattProfile: BleGattProfile {
+                        BleGattProfile(
+                            serviceUUIDs: [CBUUID(string: "AF00")],
+                            writeCharUUID: CBUUID(string: "AF01"),
+                            notifyCharUUID: CBUUID(string: "AF02")
+                        )
+                    }
+                    var supplementaryGattProfiles: [BleGattProfile] {
+                        [
+                            BleGattProfile(
+                                serviceUUIDs: [CBUUID(string: "9F6B1A20-3C4D-4E5F-A601-7B8C9D0E1122")],
+                                notifyCharUUID: CBUUID(string: "9F6B1A22-3C4D-4E5F-A601-7B8C9D0E1122")
+                            )
+                        ]
+                    }
+                }
+                let merged = BleConfiguration().merged(withParsedData: StubProfile())
+                expect(BleUUID.matches(merged.gattProfile.serviceUUIDs![0], CBUUID(string: "AF00"))) == true
+                expect(merged.supplementaryGattProfiles.count) == 1
+            }
+
+            it("clears supplementary when parsed data returns empty") {
+                struct EmptySupplementary: BleProvidesSupplementaryGattProfiles {
+                    var supplementaryGattProfiles: [BleGattProfile] { [] }
+                }
+                var base = BleConfiguration(
+                    supplementaryGattProfiles: [
+                        BleGattProfile(serviceUUIDs: [CBUUID(string: "BEEF")])
+                    ]
+                )
+                base = base.merged(withParsedData: EmptySupplementary())
+                expect(base.supplementaryGattProfiles).to(beEmpty())
+            }
+        }
+
+        describe("supplementary notify ACK isolation") {
+            it("does not treat non-ACK analytics-shaped payload as command ACK") {
+                let matcher = BleByteAckMatcher(indices: [0, 1, 3])
+                let command = Data([0xAA, 0x55, 0x00, 0xC0])
+                let analyticsNotify = Data([0xDE, 0xAD, 0xBE, 0xEF])
+                expect(matcher.matches(command: command, response: analyticsNotify)) == false
+            }
         }
     }
 }

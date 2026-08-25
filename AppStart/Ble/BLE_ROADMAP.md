@@ -155,15 +155,8 @@ transport Config 连接 → 断开 → ota Config 连接 → 第三方 SDK 写�
 同一广播（如 0xAA）不同子型号（V3 vs M9）对应不同 Service UUID：
 
 ```swift
-// Parser 输出（App 层类型示例）
-struct BleGattProfile {
-    var serviceUUIDs: [CBUUID]
-    var writeCharUUID: CBUUID?
-    var notifyCharUUID: CBUUID?
-    // optional secondaryChannel for analytics
-}
-
-// connect 时：effectiveConfig.gattProfile = base.gattProfile.merged(with: parserProfile)
+// Parser 输出（App 层）实现 BleProvidesGattProfile / BleProvidesSupplementaryGattProfiles
+// connect 时：effectiveConfiguration merge 主 + 附加 GATT
 ```
 
 避免为每个 PType 注册多个冲突 Configuration 抢 resolve。
@@ -220,19 +213,17 @@ struct BlePumpAckMatcher: BleAckMatcher {
 
 **框架**
 
-- [ ] C2：`BleConfiguration` 支持 `secondaryChannel`（optional）
-  - 仅 `.direct` write
+- [x] C2：`BleConfiguration.supplementaryGattProfiles`（附加 GATT，connect 时由 parser merge）
   - 不参与主 ACK 队列
-  - Notify 按 UUID / role 路由，避免误匹配主队列 ACK
-- [ ] API：`connection.writeSecondary(_:)` 或 `write(_:, role: .secondary)`（二选一，实现时定稿）
+  - 附加 Notify 不进 `writeQueue`
 
 **AppTemplate 验收**
 
-- [ ] Mock analytics 副通道：主通道发 C0 同时副通道收 Notify
+- [x] M5（0x07）supplementary GATT + `BlePumpAnalyticsParser` Demo
 
 **退出标准**
 
-- 主队列 ACK 不受副通道 Notify 干扰
+- [x] 主队列 ACK 不受副通道 Notify 干扰（`shouldFeedWriteQueue` 隔离）
 
 ---
 

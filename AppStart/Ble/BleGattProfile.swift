@@ -49,9 +49,14 @@ public struct BleGattProfile {
     }
 }
 
-/// App 层解析结果实现此协议，供 `connect` 时 merge GATT 快照。
+/// App 层解析结果实现此协议，供 `connect` 时 merge GATT 快照（主通道）。
 public protocol BleProvidesGattProfile {
     var bleGattProfile: BleGattProfile { get }
+}
+
+/// App 层解析结果实现此协议，供 `connect` 时按子型号注入附加 GATT（如 M5 埋点）。
+public protocol BleProvidesSupplementaryGattProfiles {
+    var supplementaryGattProfiles: [BleGattProfile] { get }
 }
 
 extension BleConfiguration {
@@ -64,10 +69,20 @@ extension BleConfiguration {
         return copy
     }
 
-    /// 从 `parsedData` 提取 `BleProvidesGattProfile` 并 merge。
+    /// 从 `parsedData` merge 主 / 附加 GATT（分别由 `BleProvidesGattProfile`、
+    /// `BleProvidesSupplementaryGattProfiles` 提供；未实现则保留注册快照原值）。
     public func merged(withParsedData parsedData: Any?) -> BleConfiguration {
-        guard let provider = parsedData as? BleProvidesGattProfile else { return self }
-        return merged(with: provider.bleGattProfile)
+        guard parsedData is BleProvidesGattProfile || parsedData is BleProvidesSupplementaryGattProfiles else {
+            return self
+        }
+        var copy = self
+        if let provider = parsedData as? BleProvidesGattProfile {
+            copy.gattProfile = gattProfile.merged(with: provider.bleGattProfile)
+        }
+        if let provider = parsedData as? BleProvidesSupplementaryGattProfiles {
+            copy.supplementaryGattProfiles = provider.supplementaryGattProfiles
+        }
+        return copy
     }
 }
 

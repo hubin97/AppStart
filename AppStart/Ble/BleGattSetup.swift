@@ -6,6 +6,7 @@
 //
 //  GATT 自动发现：Service → Characteristic → 订阅 Notify / 定位写特征。
 //  所有目标 Service 的特征发现完成后，一次性回调 ready。
+//  主 Profile + supplementaryGattProfiles 一并发现；ready 仅绑定主 write。
 
 import Foundation
 import CoreBluetooth
@@ -22,6 +23,7 @@ final class BleGattSetup {
     private let logger: BleLogger
     /// 待发现特征的服务数量（用于判断全部完成）
     private var pendingServiceCount = 0
+    /// 已完成特征发现的服务数量（与 pendingServiceCount 配对，用于 finalize）
     private var completedServiceCount = 0
     private var writeChar: CBCharacteristic?
     private var readyService: CBService?
@@ -34,7 +36,7 @@ final class BleGattSetup {
         self.logger = logger
     }
 
-    /// 入口：按 gattProfile.serviceUUIDs 发现服务（空则发现全部）
+    /// 入口：合并主/附加 serviceUUIDs 发现服务（皆空则发现全部）
     func beginServiceDiscovery(on peripheral: CBPeripheral) {
         pendingServiceCount = 0
         completedServiceCount = 0
@@ -42,8 +44,7 @@ final class BleGattSetup {
         readyService = nil
         setupError = nil
         didEmitReady = false
-        let serviceUUIDs = configuration.gattProfile.serviceUUIDs ?? []
-        let uuids = serviceUUIDs.isEmpty ? nil : serviceUUIDs
+        let uuids = mergedServiceUUIDs.isEmpty ? nil : mergedServiceUUIDs
         peripheral.discoverServices(uuids)
     }
 
@@ -64,10 +65,9 @@ final class BleGattSetup {
             ))
         }
         pendingServiceCount = targetServices.count
-        let profile = configuration.gattProfile
-        let charUUIDs = [profile.readCharUUID, profile.writeCharUUID, profile.notifyCharUUID].compactMap { $0 }
         for service in targetServices {
-            if charUUIDs.isEmpty {
+            let charUUIDs = characteristicsToDiscover(for: service)
+            if charUUIDs?.isEmpty != false {
                 peripheral.discoverCharacteristics(nil, for: service)
             } else {
                 peripheral.discoverCharacteristics(charUUIDs, for: service)
@@ -91,9 +91,60 @@ final class BleGattSetup {
         return finalizeIfNeeded(peripheral: peripheral)
     }
 
-    /// 遍历特征：read → setNotify → 记录 writeChar
+    // MARK: - Private
+
+    /// 主 Profile 与 supplementaryGattProfiles 合并后的 Service UUID 列表（空表示未配置，discover 全部）
+    private var mergedServiceUUIDs: [CBUUID] {
+        var combined: [CBUUID] = []
+        if let primary = configuration.gattProfile.serviceUUIDs, !primary.isEmpty {
+            combined.append(contentsOf: primary)
+        }
+        for profile in configuration.supplementaryGattProfiles {
+            if let uuids = profile.serviceUUIDs, !uuids.isEmpty {
+                combined.append(contentsOf: uuids)
+            }
+        }
+        return combined
+    }
+
+    /// 按 mergedServiceUUIDs 过滤；未配置 UUID 时保留 peripheral 返回的全部 Service。
+    private func filterServices(_ services: [CBService]) -> [CBService] {
+        guard !mergedServiceUUIDs.isEmpty else { return services }
+        return services.filter { service in
+            mergedServiceUUIDs.contains { BleUUID.matches(service.uuid, $0) }
+        }
+    }
+
+    /// 按 Service UUID 匹配 supplementary，否则回落主 gattProfile（决定 read/notify/write 目标）。
+    private func profile(for service: CBService) -> BleGattProfile {
+        for supplementary in configuration.supplementaryGattProfiles {
+            guard let serviceUUIDs = supplementary.serviceUUIDs, !serviceUUIDs.isEmpty else { continue }
+            if serviceUUIDs.contains(where: { BleUUID.matches(service.uuid, $0) }) {
+                return supplementary
+            }
+        }
+        return configuration.gattProfile
+    }
+
+    /// 是否主 Profile 所属 Service；仅主 Service 记录 writeChar（附加通道不参与 ready / 写队列）。
+    private func isPrimaryService(_ service: CBService) -> Bool {
+        guard let serviceUUIDs = configuration.gattProfile.serviceUUIDs, !serviceUUIDs.isEmpty else {
+            return configuration.supplementaryGattProfiles.isEmpty
+        }
+        return serviceUUIDs.contains { BleUUID.matches(service.uuid, $0) }
+    }
+
+    /// 该 Service 对应 profile 下需发现的特征 UUID；nil 表示 discoverCharacteristics(nil) 发现全部。
+    private func characteristicsToDiscover(for service: CBService) -> [CBUUID]? {
+        let profile = profile(for: service)
+        let charUUIDs = [profile.readCharUUID, profile.writeCharUUID, profile.notifyCharUUID].compactMap { $0 }
+        return charUUIDs.isEmpty ? nil : charUUIDs
+    }
+
+    /// 遍历特征：read → setNotify → 记录 writeChar（write 仅主 Profile）
     private func process(characteristics: [CBCharacteristic], peripheral: CBPeripheral, service: CBService) {
-        let profile = configuration.gattProfile
+        let profile = profile(for: service)
+        let isPrimary = isPrimaryService(service)
         for characteristic in characteristics {
             if characteristic.properties.contains(.read),
                BleUUID.matches(characteristic.uuid, configured: profile.readCharUUID) {
@@ -105,7 +156,8 @@ final class BleGattSetup {
                 logger.log("订阅通知: \(characteristic.uuid)")
                 peripheral.setNotifyValue(true, for: characteristic)
             }
-            if characteristic.properties.contains(.write) || characteristic.properties.contains(.writeWithoutResponse),
+            if isPrimary,
+               characteristic.properties.contains(.write) || characteristic.properties.contains(.writeWithoutResponse),
                BleUUID.matches(characteristic.uuid, configured: profile.writeCharUUID) {
                 logger.log("记录写特征: \(characteristic.uuid)")
                 writeChar = characteristic
@@ -114,15 +166,6 @@ final class BleGattSetup {
             if configuration.discoverDescriptors {
                 peripheral.discoverDescriptors(for: characteristic)
             }
-        }
-    }
-
-    /// 若配置了 serviceUUIDs，仅处理与之等价的服务。
-    private func filterServices(_ services: [CBService]) -> [CBService] {
-        let serviceUUIDs = configuration.gattProfile.serviceUUIDs ?? []
-        guard !serviceUUIDs.isEmpty else { return services }
-        return services.filter { service in
-            serviceUUIDs.contains { BleUUID.matches(service.uuid, $0) }
         }
     }
 

@@ -50,16 +50,16 @@ public final class BlePeripheralConnection: NSObject {
         await stateBus.stream()
     }
 
-    /// 订阅 Notify 回包；`uuid == nil` 收全部特征，传入 UUID 则只收该特征。
+    /// 订阅 Notify 回包；`uuid == nil` 时按主通道 notify UUID 过滤（未配置则全量）。
     /// 用法：`for await update in await connection.characteristicUpdates() { ... }`
     public func characteristicUpdates(matching uuid: CBUUID? = nil) async -> AsyncStream<BleCharacteristicUpdate> {
         let stream = await updateBus.stream()
-        guard let uuid else { return stream }
-        // 多 Notify 特征时按 UUID 过滤（例如只关心 gattProfile.notifyCharUUID）
+        let filterUUID = uuid ?? configuration.gattProfile.notifyCharUUID
+        guard let filterUUID else { return stream }
         return AsyncStream { continuation in
             Task {
                 for await update in stream {
-                    if update.characteristic.uuid == uuid {
+                    if BleUUID.matches(update.characteristic.uuid, filterUUID) {
                         continuation.yield(update)
                     }
                 }
@@ -256,7 +256,24 @@ extension BlePeripheralConnection: CBPeripheralDelegate {
         let update = BleCharacteristicUpdate(peripheral: peripheral, characteristic: characteristic, data: data)
         // Notify 双消费：业务层 characteristicUpdates + 写队列 ACK（serialized 模式）
         Task { await updateBus.yield(update) }
-        writeQueue?.handleCharacteristicUpdate(data)
+        if shouldFeedWriteQueue(characteristic: characteristic) {
+            writeQueue?.handleCharacteristicUpdate(data)
+        }
+    }
+
+    /// 附加 Profile 的 Notify 不进入主串行 ACK 队列。
+    private func shouldFeedWriteQueue(characteristic: CBCharacteristic) -> Bool {
+        guard writeQueue != nil else { return false }
+        for profile in configuration.supplementaryGattProfiles {
+            if let notify = profile.notifyCharUUID,
+               BleUUID.matches(characteristic.uuid, notify) {
+                return false
+            }
+        }
+        if let primaryNotify = configuration.gattProfile.notifyCharUUID {
+            return BleUUID.matches(characteristic.uuid, primaryNotify)
+        }
+        return true
     }
 
     public func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {

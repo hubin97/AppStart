@@ -232,6 +232,7 @@ connecting → connected → ready(BleChannelReadyInfo)
 | `matching` | ✅ 过滤广播 | — |
 | `advParser` | ✅ 解析 MAC 等 | — |
 | `gattProfile` | ❌ **不用于系统 scan 过滤** | ✅ discoverServices / discoverCharacteristics |
+| `supplementaryGattProfiles` | — | ✅ 附加 discover / subscribe（不进主 ACK 队列） |
 | `writeQueue` | — | ✅ direct 或 serialized |
 | `reconnect` | — | ✅ 自动重连策略 |
 | `debugLog` / `logTag` | — | ✅ 日志开关与 tag |
@@ -263,18 +264,35 @@ if let ack = try await connection.write(stepAData) {
 - `timeout` 可 per-call 传入；省略则用 configuration 的 `defaultTimeout`
 - 顺序、条件分支、组包/解包均在 App 层用 `async` 串联；框架只保证串行与 ACK 匹配
 
-### 动态 GattProfile（connect merge）
+**附加 GATT（R2）与动态 GattProfile（connect merge）**
 
-Parser 解析结果实现 `BleProvidesGattProfile`，`connect` 时 overlay merge 进 `gattProfile`：
+Parser 解析结果按需实现：
+
+| 协议 | 用途 |
+|------|------|
+| `BleProvidesGattProfile` | 主通道 overlay merge（如 V3 → extended） |
+| `BleProvidesSupplementaryGattProfiles` | 子型号附加通道（如 M5 0x07 → secondary） |
 
 ```swift
-// parsedData.bleGattProfile 覆盖 configuration.gattProfile 中非 nil 字段
+BleSession.shared.register(BleConfiguration(
+    gattProfile: primaryProfile,  // 产品级默认；子型号由 parser overlay
+    // matching / writeQueue / parser ...
+))
+
 let connection = try await BleSession.shared.connect(discovery: discovery)
-// 内部使用 discovery.effectiveConfiguration
+// 内部：discovery.effectiveConfiguration merge 主 + 附加 GATT
+
+_ = try await connection.write(c0Data)
+
+// 附加 Notify（App 层按 UUID 过滤；不进主 ACK 队列）
+for await update in await connection.characteristicUpdates(matching: secondaryNotifyUUID) {
+    // 解析 update.data
+}
 ```
 
-- **静态产品**：`BleConfiguration(gattProfile: BleGattProfile(...))`
-- **动态子型号**：Config 留 `gattProfile: .empty`，parser 实现 `BleProvidesGattProfile`（需保证 connect 时有 parsedData）
+- **静态产品**：注册时写死 `gattProfile`
+- **动态子型号**：注册默认值 + parser 实现上述协议（需 connect 时有 parsedData）
+- `supplementaryGattProfiles`：仅 discover / subscribe，不参与主 `write(_:)` ACK
 
 工具类型：`BleGattProfile`、`BleUUID.matches`（16-bit ↔ 128-bit Base UUID 等价）
 
