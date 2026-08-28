@@ -138,5 +138,73 @@ class BleModuleSpec: QuickSpec {
                 expect(matcher.matches(command: command, response: analyticsNotify)) == false
             }
         }
+
+        describe("BleAsyncBroadcastStream") {
+            it("registers a non-replay subscriber before stream() returns") {
+                waitUntil(timeout: .seconds(1)) { done in
+                    Task {
+                        let bus = BleAsyncBroadcastStream<Int>(replayLatest: false)
+                        let stream = await bus.stream()
+                        await bus.yield(7)
+                        var iterator = stream.makeAsyncIterator()
+                        let value = await iterator.next()
+                        expect(value) == 7
+                        done()
+                    }
+                }
+            }
+        }
+
+        describe("BleReconnectHandler") {
+            it("retries until the complete connection attempt reports ready") {
+                waitUntil(timeout: .seconds(1)) { done in
+                    let logger = BleLogger(isEnabled: false, tag: "[Ble/Test]")
+                    let handler = BleReconnectHandler(
+                        policy: .init(enabled: true, maxAttempts: 3, interval: 0.01),
+                        logger: logger
+                    )
+                    var attempts = 0
+                    var reportedProgress: [(Int, Int)] = []
+                    handler.reconnect = { attempt, maximumAttempts in
+                        attempts += 1
+                        reportedProgress.append((attempt, maximumAttempts))
+                        return attempts == 2
+                    }
+                    handler.onPhaseChange = { [handler] phase in
+                        guard case .stopped(.success) = phase else { return }
+                        expect(attempts) == 2
+                        expect(reportedProgress.map { $0.0 }) == [1, 2]
+                        expect(reportedProgress.map { $0.1 }) == [3, 3]
+                        handler.onPhaseChange = nil
+                        done()
+                    }
+
+                    handler.notifyUnexpectedDisconnect()
+                }
+            }
+
+            it("reports exhausted after the configured number of failed attempts") {
+                waitUntil(timeout: .seconds(1)) { done in
+                    let logger = BleLogger(isEnabled: false, tag: "[Ble/Test]")
+                    let handler = BleReconnectHandler(
+                        policy: .init(enabled: true, maxAttempts: 2, interval: 0.01),
+                        logger: logger
+                    )
+                    var attempts = 0
+                    handler.reconnect = { _, _ in
+                        attempts += 1
+                        return false
+                    }
+                    handler.onPhaseChange = { [handler] phase in
+                        guard case .stopped(.exhausted) = phase else { return }
+                        expect(attempts) == 2
+                        handler.onPhaseChange = nil
+                        done()
+                    }
+
+                    handler.notifyUnexpectedDisconnect()
+                }
+            }
+        }
     }
 }

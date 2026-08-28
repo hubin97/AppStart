@@ -30,6 +30,8 @@ public struct BleChannelReadyInfo {
 /// 单设备连接状态机
 public enum BlePeripheralState {
     case connecting       // 正在建立物理连接
+    /// 自动重连中；仅在配置启用重连，且首次连接失败或连接意外断开后出现。
+    case reconnecting(attempt: Int, maximumAttempts: Int)
     case connected        // 物理连接已建立，GATT 发现中
     case ready(BleChannelReadyInfo)  // 可读写
     case disconnected(BleDisconnectReason)
@@ -73,6 +75,11 @@ public struct BleDiscovery {
         self.advertisement = advertisement
         self.parsedData = parsedData
         self.configuration = configuration
+    }
+
+    /// 类型安全读取广播解析结果，避免业务层到处重复 `as?`。
+    public func parsedData<Value>(as type: Value.Type = Value.self) -> Value? {
+        parsedData as? Value
     }
 }
 
@@ -139,6 +146,10 @@ public enum BleError: Error {
     /// 场景：`didWriteValueFor` 回报错误，或写队列处理 in-flight 指令失败。
     case writeFailed(Error)
 
+    /// 单次写入超过当前链路 MTU 对应上限。
+    /// 普通协议帧不会被底层静默拆分；大数据请显式使用 `writeChunked`。
+    case writeDataTooLong(actual: Int, maximum: Int)
+
     /// 操作被取消。
     /// 场景：断开连接时清空写队列；或任务/continuation 被主动取消。
     case cancelled
@@ -147,4 +158,34 @@ public enum BleError: Error {
     /// 场景：`BleSession.connect(discovery:)` 时 `discovery.configuration == nil`
     ///（未走 Session 扫描/未注册产品，或临时扫描未命中协议）。
     case configurationNotResolved
+}
+
+extension BleError: LocalizedError {
+
+    public var errorDescription: String? {
+        switch self {
+        case .bluetoothUnavailable(let state):
+            return "蓝牙不可用（状态码：\(state.rawValue)）"
+        case .notConnected:
+            return "设备尚未连接或 GATT 通道未就绪"
+        case .writeCharacteristicNotFound:
+            return "未找到可写特征"
+        case .connectionTimeout:
+            return "连接或 GATT 通道建立超时"
+        case .connectionFailed(let error):
+            return error?.localizedDescription ?? "物理连接失败"
+        case .channelSetupFailed(let error):
+            return "GATT 通道建立失败：\(error.localizedDescription)"
+        case .writeTimeout:
+            return "等待设备指令应答超时"
+        case .writeFailed(let error):
+            return "写入失败：\(error.localizedDescription)"
+        case .writeDataTooLong(let actual, let maximum):
+            return "单次写入 \(actual) bytes，超过当前上限 \(maximum) bytes"
+        case .cancelled:
+            return "操作已取消"
+        case .configurationNotResolved:
+            return "扫描结果未解析到产品配置"
+        }
+    }
 }

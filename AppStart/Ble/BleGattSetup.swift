@@ -5,18 +5,18 @@
 //  Copyright © 2025 hubin.h. All rights reserved.
 //
 //  GATT 自动发现：Service → Characteristic → 订阅 Notify / 定位写特征。
-//  所有目标 Service 的特征发现完成后，一次性回调 ready。
-//  主 Profile + supplementaryGattProfiles 一并发现；ready 仅绑定主 write。
+//  所有目标 Service 的特征发现完成后，若配置了 Notify 则等待 `didUpdateNotificationStateFor` 确认，
+//  再一次性回调 ready。主 Profile + supplementaryGattProfiles 一并发现；ready 仅绑定主 write。
 
 import Foundation
 import CoreBluetooth
 
 final class BleGattSetup {
 
-    struct Result {
-        let writeChar: CBCharacteristic?
-        let readyService: CBService?
-        let error: Error?
+    /// GATT 建链只允许两种终态，避免 optional 组合出「无 error、也无 readyService」的非法成功。
+    enum Result {
+        case ready(writeChar: CBCharacteristic?, service: CBService)
+        case failure(Error)
     }
 
     private let configuration: BleConfiguration
@@ -30,6 +30,12 @@ final class BleGattSetup {
     private var setupError: Error?
     /// 防止多个 service 回调重复触发 ready
     private var didEmitReady = false
+    /// 已调用 `setNotifyValue(true)`、等待 `didUpdateNotificationStateFor` 确认的特征
+    private var pendingNotifyCharacteristics: Set<ObjectIdentifier> = []
+    /// 已成功发起订阅的 Notify UUID（用于校验配置项是否命中）
+    private var subscribedNotifyUUIDs: [CBUUID] = []
+    /// 特征发现阶段已结束，仅剩 Notify 确认 barrier
+    private var characteristicsDiscoveryFinished = false
 
     init(configuration: BleConfiguration, logger: BleLogger) {
         self.configuration = configuration
@@ -46,6 +52,9 @@ final class BleGattSetup {
         readyService = nil
         setupError = nil
         didEmitReady = false
+        pendingNotifyCharacteristics = []
+        subscribedNotifyUUIDs = []
+        characteristicsDiscoveryFinished = false
         let uuids = mergedServiceUUIDs.isEmpty ? nil : mergedServiceUUIDs
         peripheral.discoverServices(uuids)
     }
@@ -53,18 +62,17 @@ final class BleGattSetup {
     /// 服务发现回调：为每个 service 发起特征发现
     func handleDiscoveredServices(_ peripheral: CBPeripheral, error: Error?) -> Result? {
         if let error {
-            return Result(writeChar: nil, readyService: nil, error: error)
+            didEmitReady = true
+            return .failure(error)
         }
         guard let services = peripheral.services, !services.isEmpty else {
-            return Result(writeChar: nil, readyService: nil, error: BleError.channelSetupFailed(
-                NSError(domain: "BleGattSetup", code: 1, userInfo: [NSLocalizedDescriptionKey: "未发现服务"])
-            ))
+            didEmitReady = true
+            return .failure(setupError(code: 1, message: "未发现服务"))
         }
         let targetServices = filterServices(services)
         guard !targetServices.isEmpty else {
-            return Result(writeChar: nil, readyService: nil, error: BleError.channelSetupFailed(
-                NSError(domain: "BleGattSetup", code: 2, userInfo: [NSLocalizedDescriptionKey: "未匹配到目标服务"])
-            ))
+            didEmitReady = true
+            return .failure(setupError(code: 2, message: "未匹配到目标服务"))
         }
         pendingServiceCount = targetServices.count
         for service in targetServices {
@@ -91,6 +99,32 @@ final class BleGattSetup {
         }
         completedServiceCount += 1
         return finalizeIfNeeded(peripheral: peripheral)
+    }
+
+    /// Notify 订阅状态回调；全部目标 Notify 确认后才产出 ready。
+    func handleUpdatedNotificationState(
+        peripheral: CBPeripheral,
+        for characteristic: CBCharacteristic,
+        error: Error?
+    ) -> Result? {
+        guard !didEmitReady else { return nil }
+        let key = ObjectIdentifier(characteristic)
+        guard pendingNotifyCharacteristics.contains(key) else { return nil }
+
+        if let error {
+            didEmitReady = true
+            return .failure(error)
+        }
+        guard characteristic.isNotifying else {
+            didEmitReady = true
+            return .failure(setupError(code: 3, message: "Notify 订阅未启用: \(characteristic.uuid)"))
+        }
+        pendingNotifyCharacteristics.remove(key)
+        // 多 Service 并行发现时，某个 Notify 确认可能早于其他 Service 的特征发现回调。
+        // 此时只记录该确认；必须同时满足「特征发现全部结束 + pending Notify 为空」才 ready。
+        guard characteristicsDiscoveryFinished, pendingNotifyCharacteristics.isEmpty else { return nil }
+        didEmitReady = true
+        return successResult(peripheral: peripheral)
     }
 
     // MARK: - Profile
@@ -149,6 +183,19 @@ final class BleGattSetup {
         return charUUIDs.isEmpty ? nil : charUUIDs
     }
 
+    private var requiredNotifyUUIDs: [CBUUID] {
+        var uuids: [CBUUID] = []
+        if let primary = configuration.gattProfile.notifyCharUUID {
+            uuids.append(primary)
+        }
+        for profile in configuration.supplementaryGattProfiles {
+            if let notify = profile.notifyCharUUID {
+                uuids.append(notify)
+            }
+        }
+        return uuids
+    }
+
     // MARK: - Process
 
     /// 遍历特征：read → setNotify → 记录 writeChar（write 仅主 Profile）
@@ -165,6 +212,8 @@ final class BleGattSetup {
                BleUUID.matches(characteristic.uuid, configured: profile.notifyCharUUID) {
                 logger.log("订阅通知: \(characteristic.uuid)")
                 peripheral.setNotifyValue(true, for: characteristic)
+                pendingNotifyCharacteristics.insert(ObjectIdentifier(characteristic))
+                subscribedNotifyUUIDs.append(characteristic.uuid)
             }
             if isPrimary,
                characteristic.properties.contains(.write) || characteristic.properties.contains(.writeWithoutResponse),
@@ -179,16 +228,54 @@ final class BleGattSetup {
         }
     }
 
-    /// 所有 service 特征发现完毕，产出 ready 或 error（仅触发一次）
+    /// 所有 service 特征发现完毕，产出 ready 或 error（仅触发一次）；有 pending Notify 时延迟 ready。
     private func finalizeIfNeeded(peripheral: CBPeripheral) -> Result? {
         guard completedServiceCount >= pendingServiceCount, !didEmitReady else { return nil }
-        didEmitReady = true
+
         if let setupError {
-            return Result(writeChar: nil, readyService: nil, error: setupError)
+            didEmitReady = true
+            return .failure(setupError)
+        }
+        if let missingNotifyError = missingRequiredNotifyError() {
+            didEmitReady = true
+            return .failure(missingNotifyError)
         }
         if configuration.gattProfile.writeCharUUID != nil, writeChar == nil {
-            return Result(writeChar: nil, readyService: nil, error: BleError.writeCharacteristicNotFound)
+            didEmitReady = true
+            return .failure(BleError.writeCharacteristicNotFound)
         }
-        return Result(writeChar: writeChar, readyService: readyService ?? peripheral.services?.first, error: nil)
+
+        characteristicsDiscoveryFinished = true
+
+        if pendingNotifyCharacteristics.isEmpty {
+            didEmitReady = true
+            return successResult(peripheral: peripheral)
+        }
+        return nil
+    }
+
+    private func missingRequiredNotifyError() -> Error? {
+        for required in requiredNotifyUUIDs {
+            let subscribed = subscribedNotifyUUIDs.contains { BleUUID.matches($0, required) }
+            if !subscribed {
+                return setupError(code: 4, message: "未找到 Notify 特征: \(required)")
+            }
+        }
+        return nil
+    }
+
+    private func successResult(peripheral: CBPeripheral) -> Result {
+        guard let service = readyService ?? peripheral.services?.first else {
+            return .failure(setupError(code: 5, message: "GATT 就绪时缺少可用 Service"))
+        }
+        return .ready(writeChar: writeChar, service: service)
+    }
+
+    private func setupError(code: Int, message: String) -> NSError {
+        NSError(
+            domain: "BleGattSetup",
+            code: code,
+            userInfo: [NSLocalizedDescriptionKey: message]
+        )
     }
 }

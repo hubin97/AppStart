@@ -84,7 +84,8 @@ enum BleProducts {
 ### 2. App 入口注册
 
 ```swift
-BleSession.shared.register(BleProducts.all)
+// 推荐：幂等设置，App 初始化流程重复执行也不会追加重复配置
+BleSession.shared.setRegisteredConfigurations(BleProducts.all)
 ```
 
 ### 3. 扫描
@@ -120,7 +121,9 @@ let connection = try await BleSession.shared.connect(discovery: discovery) // �
 for await state in await connection.states() { ... }
 for await update in await connection.characteristicUpdates() { ... }
 try await connection.write(data)
-connection.disconnect()
+let mtu = connection.maximumWriteValueLength()
+try await connection.writeChunked(largeData) // 仅 OTA/批量数据显式选择分片
+BleSession.shared.disconnectActiveConnection()
 ```
 
 ---
@@ -148,11 +151,11 @@ BleSession.connect(discovery:)  // App 推荐入口
   → private connect(peripheral, discovery.configuration)
   → BleCentral.connect（绑定配置快照）
   → 物理连接 → discoverServices → discoverCharacteristics
-  → 订阅 Notify、定位 writeChar → .ready
+  → 订阅 Notify 并等待 `didUpdateNotificationStateFor` 确认 → 定位 writeChar → .ready
   → waitUntilReady() 返回；activeConnection 已赋值
 ```
 
-状态机：`connecting → connected → ready`；失败 `failed` / `timedOut`；断开 `disconnected`。
+状态机：`connecting → connected → ready`；自动重连为 `reconnecting(attempt:maximumAttempts:)`；失败 `failed` / `timedOut`；断开 `disconnected`。
 
 ---
 
@@ -199,12 +202,14 @@ BleSession.connect(discovery:)  // App 推荐入口
 connecting → connected → ready(BleChannelReadyInfo)
          ↘ failed / timedOut
          ↘ disconnected(userInitiated | unexpected)
+                    ↘ reconnecting(attempt, maximumAttempts) → connected → ready
 ```
 
 - `connecting`：`centralManager.connect` 已调用，物理连接未完成
+- `reconnecting`：配置启用自动重连后，公开当前重试次数与最大次数
 - `connected`：物理连接 OK，GATT 发现进行中
-- `ready`：写特征已定位、Notify 已订阅，可 `write`
-- `connect()` 的 `await` 在 `.ready` 时 resume
+- `ready`：写特征已定位、全部目标 Notify 已确认订阅，可 `write`
+- `connect()` 的 `await` 在 `.ready` 时 resume；总超时覆盖物理连接 + GATT + Notify 确认
 
 **`BleCharacteristicUpdate`** — Notify 推送，供 UI 订阅；写队列也会消费同一路径。
 
@@ -369,11 +374,14 @@ products.resolve(peripheral:advertisementData:)
 | API | 作用 |
 |-----|------|
 | `register(_:)` / `register([:])` | 追加产品配置，同步 Central 日志 |
+| `setRegisteredConfigurations(_:)` | 幂等替换启动期产品配置，避免重复注册改变 resolve |
 | `configure(_:)` | 单产品场景更新 Central 默认配置 |
 | `scan(configuration:)` | 扫单款产品 |
 | `scan(at:)` | 按注册下标扫 |
 | `scanAllProducts()` | 混扫全部已注册产品 |
+| `stopScanning()` | 停止当前扫描，业务层无需下探 Central |
 | `connect(discovery:)` | 从扫描结果连接（**App 唯一推荐入口**；内部 private connect 绑定 resolve 后的 configuration） |
+| `disconnectActiveConnection()` | 主动断开并清空当前主连接 |
 
 跨页面共享：`activeConnection` + `central.activeConnections`。
 
@@ -383,22 +391,24 @@ products.resolve(peripheral:advertisementData:)
 
 **单例 `BleCentral.shared`**，持有一个 `CBCentralManager`，所有扫描/连接经此出入。
 
-#### 扫描会话上下文（一次 `scan()` 生命周期）
+#### 扫描会话（一次 `scan()` 生命周期，带 token）
 
-| 变量 | 作用 |
+| 字段 | 作用 |
 |------|------|
+| `ScanSession.id` | 会话 token；`onTermination` / 超时仅停止匹配 token 的会话 |
+| `ScanSession.continuation` | 向 AsyncStream 消费方 yield |
+| `ScanSession.products` | 多产品列表，供 resolve |
+| `ScanSession.configuration` | 本轮 matching 用的配置（单产品或 composite） |
 | `isScanning` | 是否正在 CBCentralManager 扫描 |
-| `scanTimeoutTask` | 超时 Task；到期自动 `stopScanning()` |
-| `activeScanContinuation` | 向 AsyncStream 消费方 yield |
-| `activeScanProducts` | 多产品列表，供 resolve |
-| `activeScanConfiguration` | 本轮 matching 用的配置（单产品或 composite） |
 | `discoveredDevices` | 本轮缓存；同 identifier 原地更新，并多次 yield 以刷新 RSSI |
+
+新 `scan()` 会 finish 旧 stream 并替换会话；旧 stream 取消或超时不得影响新会话。
 
 #### `handleDiscovery` 完整链路
 
 ```
 didDiscover
-  → 产品扫描：activeScanProducts.resolve()，失败则丢弃
+  → 产品扫描：activeScanSession.products.resolve()，失败则丢弃
   → 临时扫描：matching.shouldConnect()，失败则丢弃
   → resolvedConfiguration.advParser 解析广播（失败 parsedData = nil）
   → 构造 BleDiscovery → 更新 discoveredDevices → yield
@@ -411,11 +421,13 @@ didDiscover
 
 #### 连接 `connect(to:configuration:timeout:)`
 
-1. 若 registry 里已有 connecting/connected/ready 的连接 → 复用
-2. `makeConnection` 创建 `BlePeripheralConnection`（绑定配置快照）
-3. `startConnectionTimeout`（超时秒数由上层传入；App 默认经 `BleSession.connect` 为 15s）
-4. `performConnect` → Delegate `didConnect` → GATT → `waitUntilReady()`
-5. 超时抛 `BleError.connectionTimeout` 并 disconnect
+1. 同 peripheral 并发 connect 共享同一 in-flight Task
+2. 若 registry 里已有 connecting/connected 的连接 → 复用并 `waitUntilReady()`
+3. 若已有 ready → 直接返回
+4. 否则 `makeConnection` 创建 `BlePeripheralConnection`（绑定配置快照；首次调用的 configuration / timeout 生效）
+5. `startConnectionTimeout`（覆盖物理连接 + GATT + Notify 确认；App 默认 15s）
+6. `performConnect` → Delegate `didConnect` → GATT → Notify 确认 → `waitUntilReady()`
+7. 超时抛 `BleError.connectionTimeout` 并 disconnect
 
 #### Delegate 转发
 
@@ -458,8 +470,9 @@ beginWaitingForReady()           // 状态 → connecting
 performConnect (Central)
   → handleConnected()            // 状态 → connected，discoverServices
   → GattSetup 链式发现
+  → 等待全部目标 Notify 的 `didUpdateNotificationStateFor` 确认
   → finishGattSetup              // writeChar 赋值，状态 → ready
-  → completeConnectIfNeeded()    // resume connect 的 continuation
+  → completeWaitingForReady()    // 保存 attempt 终态并 resume 全部等待者
 ```
 
 #### 写入 `write(_:)` / `write(_:to:)`
@@ -467,7 +480,9 @@ performConnect (Central)
 - **主通道**：`write(_:)` → 就绪时缓存的主 `writeChar`；serialized 时等主 Notify ACK
 - **指定特征**：`write(_:to:)` → 已发现的 `peripheral.services` 中按 UUID 查找（`BleUUID.matches`）
 - 目标即主 write → 与 `write(_:)` 相同（可走写队列）
-- 其它 UUID → 直接 `writeValue`，不进主 ACK 队列
+- 其它 UUID → 不进主 ACK 队列，但仍统一执行 ready、MTU 与 withoutResponse 背压检查
+- 普通 `write` 超过 `maximumWriteValueLength` 时抛 `writeDataTooLong`，不会静默拆分协议帧
+- OTA/批量数据显式调用 `writeChunked`，按当前 MTU 分片；`peripheralIsReady` 后续写
 
 #### Notify 双消费（重要）
 
@@ -482,6 +497,7 @@ didUpdateValueFor
 #### 断开
 
 - `disconnect()` 设 `userInitiatedDisconnect = true`，不触发重连
+- 只有该标记判定主动断开；CoreBluetooth `error == nil` 仍可能是外设主动断开
 - 意外断开 → `reconnectHandler.notifyUnexpectedDisconnect()`
 - 断开时 `writeQueue.cancelAll()`，所有 pending write 抛 `cancelled`
 
@@ -509,12 +525,14 @@ Task 驱动的轮询，**不是** UI Controller：
 
 ```
 notifyUnexpectedDisconnect / notifyConnectFailed
-  → runLoop: 每 interval 调用 connect?()
-  → 成功 → notifyConnected → stop
+  → runLoop: 调用一次完整 reconnect（physical + GATT + Notify ready）
+  → attempt 失败后等待 interval，再发起下一次
+  → 完整 ready → notifyConnected → stop
   → 达 maxAttempts → onPhaseChange(.exhausted) → 连接状态 timedOut
 ```
 
 - `notifyUserDisconnect()` → 设 flag + stop，不再重连
+- 每次 attempt 受 `BleReconnectPolicy.attemptTimeout` 限制
 - 重连成功后 `notifyConnected()` 重置 attempts
 
 ---
@@ -616,8 +634,8 @@ App: try await connection.write(c0Data)
 4. **matching 与 parser 重复逻辑** — 推荐 `BleParserValidatedMatchingStrategy` 共用同一 parser，避免两处规则不一致
 5. **LocalName** — 优先广播里的 LocalName，`peripheral.name` 可能滞后为空
 6. **ACK 误判** — 使用弱默认 `BleByteAckMatcher`；设备主动 REQ 形上报与写应答同 CID；App 层实现专属 `BleAckMatcher`（如 Pump CT=ACK）
-7. **扫描 stream 取消** — `onTermination` 自动 `stopScanning()`；页面销毁时取消 Task 即可
-8. **连接复用** — 同一 peripheral 已在 connecting/connected/ready 时 `connect` 复用句柄，不会重复 discover
+7. **扫描 stream 取消** — `onTermination` 按 session token 停止；新 scan 会替换旧 scan；页面销毁时取消 Task 即可
+8. **连接复用** — 同一 peripheral 并发 connect 共享 in-flight Task；connecting/connected 时 await 同一 ready 结果，不会重复 discover
 
 ---
 

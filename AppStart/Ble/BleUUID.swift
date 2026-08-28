@@ -31,6 +31,11 @@ public enum BleUUID {
     public static func short16BitKey(from uuid: CBUUID) -> String? {
         let value = uuid.uuidString.uppercased()
 
+        // CoreBluetooth 对 16-bit UUID 直接返回 "AF01"。
+        if value.count == 4, value.allSatisfy(\.isHexDigit) {
+            return value
+        }
+
         // 0000AF01-0000-1000-8000-00805F9B34FB
         if value.hasPrefix("0000"),
            value.hasSuffix("-0000-1000-8000-00805F9B34FB"),

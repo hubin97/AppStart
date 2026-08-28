@@ -50,20 +50,21 @@ public actor BleAsyncBroadcastStream<Element> {
 
     public func stream() -> AsyncStream<Element> {
         let id = UUID()
-        return AsyncStream { continuation in
-            continuation.onTermination = { @Sendable _ in
-                Task { await self.removeContinuation(id: id) }
-            }
-            Task { await self.addContinuation(id: id, continuation: continuation) }
+        var capturedContinuation: AsyncStream<Element>.Continuation?
+        let stream = AsyncStream<Element> { continuation in
+            capturedContinuation = continuation
         }
-    }
-
-    /// 新订阅者注册；若 replayLatest 则立即补发 latest
-    private func addContinuation(id: UUID, continuation: AsyncStream<Element>.Continuation) {
+        guard let continuation = capturedContinuation else { return stream }
+        continuation.onTermination = { @Sendable _ in
+            Task { await self.removeContinuation(id: id) }
+        }
+        // AsyncStream builder 同步执行；在 actor 方法返回前完成注册，避免非 replay 的首个 Notify
+        // 恰好落在「stream 已返回、异步 addContinuation 尚未执行」窗口而丢失。
         continuations[id] = continuation
         if replayLatest, let latest {
             continuation.yield(latest)
         }
+        return stream
     }
 
     private func removeContinuation(id: UUID) {

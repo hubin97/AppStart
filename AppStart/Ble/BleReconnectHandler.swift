@@ -7,8 +7,6 @@
 //  自动重连处理器：意外断开 / 连接失败时按策略轮询 connect（非 UI Controller）。
 
 import Foundation
-import CoreBluetooth
-
 final class BleReconnectHandler {
 
     private let policy: BleReconnectPolicy
@@ -19,8 +17,9 @@ final class BleReconnectHandler {
     private var userInitiatedDisconnect = false
 
     var onPhaseChange: ((BleReconnectPhase) -> Void)?
-    var connect: (() -> Void)?
-    var isConnected: (() -> Bool)?
+    /// 执行一次完整重连（physical connect → GATT → Notify ready），成功返回 true。
+    /// 参数为当前次数和最大次数，供连接状态向业务层公开重连进度。
+    var reconnect: ((_ attempt: Int, _ maximumAttempts: Int) async -> Bool)?
 
     init(policy: BleReconnectPolicy, logger: BleLogger) {
         self.policy = policy
@@ -30,6 +29,13 @@ final class BleReconnectHandler {
     func notifyUserDisconnect() {
         userInitiatedDisconnect = true
         stop()
+    }
+
+    /// 用户后续明确发起新连接时，恢复自动重连资格并清理上一轮计数。
+    func prepareForManualConnection() {
+        stop()
+        userInitiatedDisconnect = false
+        attempts = 0
     }
 
     func notifyConnected() {
@@ -44,7 +50,7 @@ final class BleReconnectHandler {
         startIfNeeded()
     }
 
-    func notifyConnectFailed(peripheral: CBPeripheral) {
+    func notifyConnectFailed() {
         guard policy.enabled, !userInitiatedDisconnect else { return }
         startIfNeeded()
     }
@@ -63,26 +69,22 @@ final class BleReconnectHandler {
         }
     }
 
-    /// 按 interval 间隔重试 connect，直到成功或达到 maxAttempts
+    /// 单次失败后等待 retryDelay，再开始下一次重连。
     private func runLoop() async {
-        while !Task.isCancelled {
-            if isConnected?() == true {
+        while attempts < policy.maxAttempts, !Task.isCancelled {
+            attempts += 1
+            logger.log("重连尝试 \(attempts)/\(policy.maxAttempts)")
+            if await reconnect?(attempts, policy.maxAttempts) == true {
                 notifyConnected()
                 return
             }
-            guard attempts < policy.maxAttempts else {
-                logger.log("达到最大重连次数")
-                onPhaseChange?(.stopped(.exhausted))
-                task = nil
-                return
-            }
-            attempts += 1
-            logger.log("重连尝试 \(attempts)/\(policy.maxAttempts)")
-            await MainActor.run {
-                self.connect?()
-            }
-            let nanoseconds = UInt64(policy.interval * 1_000_000_000)
+            guard !Task.isCancelled, attempts < policy.maxAttempts else { break }
+            let nanoseconds = UInt64(policy.retryDelay * 1_000_000_000)
             try? await Task.sleep(nanoseconds: nanoseconds)
         }
+        guard !Task.isCancelled else { return }
+        logger.log("达到最大重连次数")
+        onPhaseChange?(.stopped(.exhausted))
+        task = nil
     }
 }

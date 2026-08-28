@@ -17,7 +17,7 @@ end
 post_install do |installer|
   minimum = '14.0'
   projects = [installer.pods_project]
-  projects.concat(installer.generated_projects.map(&:project)) if installer.respond_to?(:generated_projects)
+  projects.concat(installer.generated_projects) if installer.respond_to?(:generated_projects)
   projects.each do |project|
     project.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = minimum

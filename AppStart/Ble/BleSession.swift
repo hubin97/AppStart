@@ -49,6 +49,12 @@ public final class BleSession {
         configurations.forEach { register($0) }
     }
 
+    /// 幂等设置启动期产品协议；适合 App 配置入口重复执行，不会因 append 改变 resolve 顺序。
+    public func setRegisteredConfigurations(_ configurations: [BleConfiguration]) {
+        self.configurations = configurations
+        central.syncLogger(from: configurations)
+    }
+
     // MARK: - 扫描
 
     /// 扫描单款产品（使用 configuration 内绑定的 matching 与 advParser）。
@@ -68,6 +74,11 @@ public final class BleSession {
             return AsyncStream { $0.finish() }
         }
         return central.scan(products: configurations, timeout: timeout)
+    }
+
+    /// 停止当前扫描会话；业务层无需下探 `session.central`。
+    public func stopScanning() {
+        central.stopScanning()
     }
 
     public func connection(for peripheral: CBPeripheral) -> BlePeripheralConnection? {
@@ -97,5 +108,11 @@ public final class BleSession {
             activeConnection = connection
         }
         return connection
+    }
+
+    /// 断开并清空当前主连接；多设备场景仍可通过具体 connection 单独断开。
+    public func disconnectActiveConnection() {
+        activeConnection?.disconnect()
+        activeConnection = nil
     }
 }

@@ -7,7 +7,6 @@
 
 import Foundation
 import MJRefresh
-import RxRelay
 
 private struct MJRefreshLocalizedProviderKeys {
     static var mjHeaderDateFormat = 0

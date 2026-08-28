@@ -13,12 +13,21 @@ import CoreBluetooth
 public struct BleReconnectPolicy {
     public var enabled: Bool
     public var maxAttempts: Int
-    public var interval: TimeInterval
+    /// 单次失败后，发起下一次重连前的等待时间
+    public var retryDelay: TimeInterval
+    /// 单次重连等待连接和 GATT 就绪的最长时间
+    public var attemptTimeout: TimeInterval
 
-    public init(enabled: Bool, maxAttempts: Int = 3, interval: TimeInterval = 5) {
+    public init(
+        enabled: Bool,
+        maxAttempts: Int = 3,
+        retryDelay: TimeInterval = 5,
+        attemptTimeout: TimeInterval = 15
+    ) {
         self.enabled = enabled
         self.maxAttempts = maxAttempts
-        self.interval = interval
+        self.retryDelay = retryDelay
+        self.attemptTimeout = attemptTimeout
     }
 
     public static let disabled = BleReconnectPolicy(enabled: false)

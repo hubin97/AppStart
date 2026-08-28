@@ -24,7 +24,7 @@ public struct BleCompositeMatchingStrategy: BlePeripheralMatching {
 
 extension Array where Element == BleConfiguration {
 
-    /// 混扫 matching 合并为 OR（`scan(products:)` 时写入 activeScanConfiguration）
+    /// 混扫 matching 合并为 OR（`scan(products:)` 时写入 ScanSession.configuration）
     public var compositeMatching: BleCompositeMatchingStrategy {
         BleCompositeMatchingStrategy(configurations: self)
     }
