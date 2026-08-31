@@ -19,7 +19,7 @@ public final class BlePeripheralConnection: NSObject {
     public let id = UUID()
     public let peripheral: CBPeripheral
 
-    /// 连接时绑定的协议快照，后续 register 变更不影响已建立连接
+    /// 连接时绑定的协议快照，后续 Session 配置变更不影响已建立连接
     private var configuration: BleConfiguration
     private var logger: BleLogger
     private let stateBus = BleAsyncBroadcastStream<BlePeripheralState>(replayLatest: true)

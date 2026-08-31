@@ -70,7 +70,7 @@ extension BleConfiguration {
     }
 
     /// 从 `parsedData` merge 主 / 附加 GATT（分别由 `BleProvidesGattProfile`、
-    /// `BleProvidesSupplementaryGattProfiles` 提供；未实现则保留注册快照原值）。
+    /// `BleProvidesSupplementaryGattProfiles` 提供；未实现则保留基础配置快照原值）。
     public func merged(withParsedData parsedData: Any?) -> BleConfiguration {
         guard parsedData is BleProvidesGattProfile || parsedData is BleProvidesSupplementaryGattProfiles else {
             return self

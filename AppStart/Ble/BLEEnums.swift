@@ -50,7 +50,7 @@ public struct BleDiscovery {
     public let peripheral: CBPeripheral
     public let advertisement: BlePeripheralData
     public let parsedData: Any?
-    /// 混扫/单产品扫描时命中的协议配置；临时扫描（无注册）时为 nil
+    /// 混扫/单产品扫描时命中的协议配置；临时扫描未匹配产品配置时为 nil
     public let configuration: BleConfiguration?
 
     /// 展示名：广播 LocalName → peripheral.name（仅 UI / 日志，不参与 matching 与 yield 门禁）
@@ -155,8 +155,8 @@ public enum BleError: Error {
     case cancelled
 
     /// 无法解析产品配置。
-    /// 场景：`BleSession.connect(discovery:)` 时 `discovery.configuration == nil`
-    ///（未走 Session 扫描/未注册产品，或临时扫描未命中协议）。
+    /// 场景：`BleSession.connect(discovery:)` 无法从扫描结果生成 `effectiveConfiguration`
+    ///（未走 Session 扫描/未配置产品，或临时扫描未命中协议）。
     case configurationNotResolved
 }
 

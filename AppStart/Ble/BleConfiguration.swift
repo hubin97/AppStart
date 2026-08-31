@@ -78,6 +78,7 @@ public struct BleConfiguration {
     public var supplementaryGattProfiles: [BleGattProfile]
     public var reconnect: BleReconnectPolicy
     public var writeQueue: BleWriteQueueConfiguration
+    /// 是否触发特征 descriptor 发现；当前内核不消费或对外发布 descriptor 结果。
     public var discoverDescriptors: Bool
     /// 扫描阶段解析广播（MAC 等）；混扫时在 resolve 后调用对应产品的 parser
     public var advParser: AnyBleAdvDataParser?

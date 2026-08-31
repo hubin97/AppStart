@@ -4,20 +4,22 @@
 //
 //  Copyright © 2025 hubin.h. All rights reserved.
 //
-//  跨页面 Session 层：产品协议注册表 + 当前活跃连接。
+//  跨页面 Session 层：产品协议配置 + 当前活跃连接。
 //  配置跟「BleConfiguration」走，不跟「页面」走；
 
 import Foundation
 import CoreBluetooth
 
-/// 跨页面共享蓝牙会话：持有 `BleCentral`、产品协议注册表与当前活跃连接。
+/// 跨页面共享蓝牙会话：持有 `BleCentral`、产品协议配置与当前活跃连接。
 public final class BleSession {
 
     public static let shared = BleSession()
 
     public var central: BleCentral
-    /// 已注册的产品协议列表（按注册顺序，混扫 resolve 时先注册者优先）
-    private var configurations: [BleConfiguration] = []
+    /// 当前会话支持的全部产品协议配置。
+    ///
+    /// 数组顺序也是混扫 resolve 的匹配优先级：多个配置同时命中时，位置靠前者优先。
+    public private(set) var configurations: [BleConfiguration] = []
 
     /// 当前页面关心的主连接（多设备场景下另有 `activeConnections`）
     public var activeConnection: BlePeripheralConnection?
@@ -25,32 +27,15 @@ public final class BleSession {
         central.activeConnections
     }
 
-    /// 已注册的协议配置（按注册顺序）
-    public var registeredConfigurations: [BleConfiguration] {
-        configurations
-    }
-
     public init(central: BleCentral = .shared) {
         self.central = central
     }
 
-    /// 单产品场景：更新 Central 全局默认配置。
-    public func configure(_ configuration: BleConfiguration) {
-        central.updateConfiguration(configuration)
-    }
-
-    /// 注册单款产品协议。
-    public func register(_ configuration: BleConfiguration) {
-        configurations.append(configuration)
-        central.syncLogger(from: configurations)
-    }
-
-    public func register(_ configurations: [BleConfiguration]) {
-        configurations.forEach { register($0) }
-    }
-
-    /// 幂等设置启动期产品协议；适合 App 配置入口重复执行，不会因 append 改变 resolve 顺序。
-    public func setRegisteredConfigurations(_ configurations: [BleConfiguration]) {
+    /// 配置当前会话支持的全部产品协议。
+    ///
+    /// 每次调用都会整体替换现有配置，不追加也不自动去重；重复传入同一数组时结果保持一致。
+    /// 单产品与多产品使用同一入口，App 应在启动配置阶段调用。
+    public func configure(with configurations: [BleConfiguration]) {
         self.configurations = configurations
         central.syncLogger(from: configurations)
     }
@@ -62,13 +47,13 @@ public final class BleSession {
         central.scan(products: [configuration], timeout: timeout)
     }
 
-    /// 扫描某一已注册产品（按注册下标）。
+    /// 扫描 `configurations` 中指定下标的产品。
     public func scan(at index: Int, timeout: TimeInterval? = nil) -> AsyncStream<BleDiscovery>? {
         guard configurations.indices.contains(index) else { return nil }
         return scan(configuration: configurations[index], timeout: timeout)
     }
 
-    /// 一次扫描所有已注册产品；各设备经 resolve 定案后使用对应 advParser。
+    /// 扫描 `configurations` 中的全部产品；各设备经 resolve 定案后使用对应 advParser。
     public func scanAllProducts(timeout: TimeInterval? = nil) -> AsyncStream<BleDiscovery> {
         guard !configurations.isEmpty else {
             return AsyncStream { $0.finish() }

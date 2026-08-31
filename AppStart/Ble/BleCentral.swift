@@ -17,7 +17,7 @@ public final class BleCentral: NSObject {
 
     public static let shared = BleCentral()
 
-    /// 全局默认配置（单产品 / 非多产品注册场景使用）
+    /// 全局默认配置（直接使用 Central 且未显式传入产品配置时使用）
     public private(set) var configuration: BleConfiguration
     /// 本轮扫描已发现、且通过 matching 过滤的设备缓存
     public private(set) var discoveredDevices: [BleDiscovery] = []
@@ -90,9 +90,8 @@ public final class BleCentral: NSObject {
         logger = BleLogger(isEnabled: configuration.debugLog, tag: configuration.logTag)
     }
 
-    /// 按已注册/当前扫描的产品配置同步日志（register、scan 时调用）。
+    /// 按 Session / 当前扫描的产品配置同步日志。
     func syncLogger(from configurations: [BleConfiguration]) {
-        guard !configurations.isEmpty else { return }
         logger = BleLogger(configurations: configurations)
     }
 
@@ -407,7 +406,7 @@ public final class BleCentral: NSObject {
     ) {
         guard let session = activeScanSession else { return }
 
-        // 1. 定案：混扫时 resolve 到具体 BleConfiguration（register 顺序优先）；临时扫描走 matching
+        // 1. 定案：混扫时按 configurations 顺序 resolve 具体配置；临时扫描走 matching
         let resolvedConfiguration: BleConfiguration?
         if !session.products.isEmpty {
             guard let resolved = session.products.resolve(
@@ -429,7 +428,7 @@ public final class BleCentral: NSObject {
         // 2. 用「那一款」的 advParser 解析；失败 parsedData = nil，展示由业务层 formatter 处理
         let parsedData = resolvedConfiguration?.parseAdvertisement(advertisementData)
 
-        // 3. 组装 discovery；connect(discovery:) 直接使用 discovery.configuration
+        // 3. 组装 discovery；connect(discovery:) 会将 parsedData 动态 GATT 合并为 effectiveConfiguration
         let discovery = BleDiscovery(
             peripheral: peripheral,
             advertisement: advertisement,

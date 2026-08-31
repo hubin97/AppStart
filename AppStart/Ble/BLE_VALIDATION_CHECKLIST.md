@@ -1,11 +1,12 @@
 # BLE 功能验证与回归用例
 
-> 适用范围：AppStart BLE 内核与 AppTemplate BLE 示例业务  
+> 适用范围：AppStart BLE 内核与 AppTemplate BLE 示例业务
+> 同步日期：2026-08-31
 > 建议设备：至少 1 台主 GATT 设备；如有 supplementary Profile，再准备对应型号
 
 ## 1. 测试前准备
 
-- [ ] App 启动调用 `BleSession.shared.setRegisteredConfigurations(BleProducts.all)`。
+- [ ] App 启动调用 `BleSession.shared.configure(with: BleProducts.all)`。
 - [ ] 目标产品打开 `debugLog`，日志组件已 launch。
 - [ ] 清理 App 后首次启动一次，确认蓝牙权限弹窗与授权流程正常。
 - [ ] 准备蓝牙开启、关闭、未授权（可重装 App）、设备远离/断电四种环境。
@@ -18,16 +19,20 @@
 | UT-01 | UUID 等价 | 运行 `BleModuleSpec` | 16-bit 与标准 128-bit Base UUID 正确匹配 |
 | UT-02 | ACK matcher | 运行 `BleModuleSpec` | 指定字节一致时匹配，不相关上报不误判 ACK |
 | UT-03 | GATT merge | 运行 `BleModuleSpec` | parser 可覆盖主 Profile，并正确注入 supplementary Profile |
+| UT-03A | 重连策略参数保持 | 构造 `BleReconnectPolicy(enabled:maxAttempts:retryDelay:attemptTimeout:)` | 四个参数保持独立且值不丢失，`retryDelay` 不覆盖 `attemptTimeout` |
+| UT-03B | Session 产品配置 | 连续两次调用 `configure(with:)` | 每次整体替换 `configurations`，不累加并保持传入顺序 |
 | UT-04 | 重连成功 | mock 前一次失败、第二次返回 ready | 尝试 2 次后收到 `.stopped(.success)` |
 | UT-05 | 重连耗尽 | mock 每次失败，`maxAttempts = 2` | 恰好尝试 2 次并收到 `.stopped(.exhausted)` |
 | UT-06 | 模块类型检查 | 对 Ble 全部 Swift 源码执行 typecheck | 无编译错误 |
 | UT-07 | 广播首事件 | stream 返回后立即 yield（non-replay） | 首个事件可读取，不落入订阅注册竞态窗口 |
 
+自动化现状：UT-01～05（含 UT-03A/03B）、UT-07 已在 `BleModuleSpec.swift` 中实现，其中 UT-04/05 使用 handler 闭包 mock 重连结果，UT-07 覆盖广播流订阅注册竞态。UT-06 属构建检查；scan/connect/GATT 状态机与 write queue 的多数 CoreBluetooth delegate 集成路径仍缺 mock，不能由上述单元测试替代。
+
 ## 3. 扫描
 
 | 编号 | 场景 | 操作 | 预期 |
 |------|------|------|------|
-| SCAN-01 | 正常混扫 | 蓝牙开启，进入发现页 | 注册产品均可按 matching/resolve 出现；RSSI 可刷新 |
+| SCAN-01 | 正常混扫 | 蓝牙开启，进入发现页 | 已配置产品均可按 matching/resolve 出现；RSSI 可刷新 |
 | SCAN-02 | 扫描超时 | 启动 15s 扫描且不手动停止 | stream 在超时后结束，状态流出现 `.stopped` |
 | SCAN-03 | 手动停止 | 扫描中退出页面 | 当前 stream 结束，系统扫描停止，无后续发现回调进入页面 |
 | SCAN-04 | 新扫描替换旧扫描 | 页面 A 扫描后立即由页面 B 发起扫描 | A stream 结束；B 正常收到结果 |
@@ -91,7 +96,7 @@
 - [ ] 已绑定列表：下拉混扫，只连接列表内设备；退出页面停止扫描。
 - [ ] Pump：F0/FD/F7 握手成功，产品 ACK matcher 不受影响。
 - [ ] Console：状态、主 Notify、附加 Notify、发送指令、主动断开均正常。
-- [ ] `BleAppConfiguration.setup()` 重复调用不产生重复注册项，resolve 顺序稳定。
+- [ ] `BleAppConfiguration.setup()` 重复调用后配置列表不累加，resolve 顺序稳定。
 - [ ] 产品名称直接来自 `connection.configurationSnapshot`，动态 GATT 型号仍展示正确产品。
 - [ ] `discovery.parsedData(as:)` 类型不匹配时返回 nil，不崩溃。
 
@@ -103,4 +108,16 @@
 - [ ] 所有非主动断连均不会被误标为 userInitiated。
 - [ ] 大数据写入无超过 MTU 的单片，背压场景无丢片。
 - [ ] 页面退出后无继续刷新 UI、无遗留扫描 Task。
-- [ ] 新增 API 保持旧调用兼容；旧 `register` / `central.stopScanning` 仍可用。
+- [ ] 对外 API 与文档一致；`central.stopScanning` 直接调用仍可用。
+
+## 9. 文档契约与已知限制验收
+
+| 编号 | 核查项 | 验收标准 |
+|------|--------|----------|
+| DOC-01 | 四层职责与状态所有权 | `BLE_ARCHITECTURE_REVIEW.md` 保持 Configuration → Session → Central → Connection 四层，并说明扫描、连接与流的并发边界 |
+| DOC-02 | 配置与业务 API | 文档与源码一致：`configure(with:)` 整体替换 `configurations`，`parsedData(as:)` 为 typed accessor，`setAsActive` 只控制主连接选择 |
+| DOC-03 | 错误契约 | 蓝牙不可用连接抛 `bluetoothUnavailable`；非 ready 写入抛 `notConnected` |
+| LIMIT-01 | descriptor 结果 | 接受 `discoverDescriptors` 可触发发现但当前不消费、不发布结果；需要结果流前不得宣称完整支持 |
+| LIMIT-02 | priority | 接受 serialized write queue 保留 priority/order，当前不简化为纯 FIFO |
+| LIMIT-03 | 阶段 3 | Service Changed、State Restoration、OTA `suspendReconnect` / `resumeReconnect` 仅为设计，不作为当前版本能力验收 |
+| LIMIT-04 | 自动化边界 | UT-04/05/07 已自动化；scan/connect/GATT/write queue 集成 mock 与本清单未勾选真机项仍须执行后才能签收 |

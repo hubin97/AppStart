@@ -4,7 +4,7 @@
 //
 //  Copyright © 2025 hubin.h. All rights reserved.
 //
-//  多产品混扫：compositeMatching（OR 过滤）与 resolve（定案，register 顺序）职责不同。
+//  多产品混扫：compositeMatching（OR 过滤）与 resolve（按配置顺序定案）职责不同。
 
 import Foundation
 import CoreBluetooth
@@ -29,7 +29,7 @@ extension Array where Element == BleConfiguration {
         BleCompositeMatchingStrategy(configurations: self)
     }
 
-    /// 定案：按 register 顺序取首个命中的 configuration（决定 advParser 与 connect 协议）
+    /// 定案：按数组顺序取首个命中的 configuration（决定 advParser 与 connect 协议）
     public func resolve(
         peripheral: CBPeripheral,
         advertisementData: [String: Any]

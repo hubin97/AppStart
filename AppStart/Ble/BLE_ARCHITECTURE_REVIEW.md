@@ -1,7 +1,7 @@
 # AppStart BLE 架构与市场场景评估
 
 > 只读源码审查 · 17 个 Swift 文件 + BLE_README / ROADMAP
-> 初版：2026-08-27 · 阶段 1/2 落地后修订：2026-08-28
+> 初版：2026-08-27 · 阶段 1/2 落地后修订：2026-08-31
 
 ## 结论摘要
 
@@ -23,11 +23,23 @@
 | 层级 | 类型 | 职责 |
 |------|------|------|
 | 产品协议 | `BleConfiguration` | matching、parser、GATT、ACK、重连策略 |
-| 应用入口 | `BleSession` | 产品注册与 `activeConnection` |
+| 应用入口 | `BleSession` | 产品协议配置与 `activeConnection` |
 | 系统中枢 | `BleCentral` | 唯一 `CBCentralManager`、扫描与连接注册表 |
 | 设备句柄 | `BlePeripheralConnection` | 状态机、GATT、写队列与重连 |
 
 配置跟 `BleConfiguration` 走，不跟页面走；App 侧推荐只走 `BleSession.connect(discovery:)`。
+
+### 组件职责、状态所有权与并发边界
+
+| 组件 | 主要职责 | 状态所有权 | 并发边界 |
+|------|----------|------------|----------|
+| `BleConfiguration` / `BleProductRegistry` | 描述产品匹配、广播解析、GATT、ACK 与重连策略；按配置数组顺序 resolve | 值类型配置快照；Registry 解析待匹配配置列表 | 配置在 connect 时合并并冻结；已连接句柄不随后续 Session 配置变化 |
+| `BleSession` | 提供 App 入口、产品协议配置及主连接选择 | `configurations`、`activeConnection`；多连接真值来自 Central registry | `configure(with:)` 整体替换产品配置；调用方负责在一致上下文修改 Session 状态 |
+| `BleCentral` | 持有唯一 `CBCentralManager`，管理扫描会话与连接注册表 | `activeScanSession`、发现缓存、connection registry、in-flight connect tasks | CoreBluetooth 扫描/连接流程在 MainActor 串行；connect task 注册由短锁保护 |
+| `BlePeripheralConnection` | 推进单设备连接状态机、GATT setup、Notify 路由、写队列与自动重连 | `currentState`、配置快照、GATT 特征缓存、等待者与重连 handler | CoreBluetooth delegate/GATT 状态在主线程边界推进；广播流由 actor 隔离，withoutResponse 等待者由短锁保护 |
+| `BleAsyncBroadcastStream` | 为状态和 Notify 提供多订阅 AsyncStream | continuation、可选 latest 值 | actor 内同步注册订阅者，避免 non-replay 首事件竞态 |
+
+整体类型暂不迁移为 `@MainActor`：这会改变现有同步公开 API 的调用契约。本轮以局部 MainActor 串行化和短锁保护关键注册表，优先保持兼容。
 
 ---
 
@@ -169,14 +181,16 @@ B 的 15s 超时到          stopScanSession(B) → 正常停止
 - 蓝牙不可用与 pending scan 语义
 - 断连重连一致性（完整 ready attempt）
 - MTU 查询、显式分片与 `withoutResponse` 背压
-- 幂等产品配置、Session 级 stop/disconnect、typed parsedData 等业务 API
+- 整体式产品配置、Session 级 stop/disconnect、typed parsedData 等业务 API
 
-### 阶段 3 · 按业务启用
+### 阶段 3 · 按业务启用（仅设计，规划中）
 
-- OTA `suspendReconnect`
+- OTA `suspendReconnect` / `resumeReconnect`
 - Service Changed → 原地重发现
 - 结构化诊断事件
 - State Restoration
+
+以上均为设计项，当前源码未实现；本轮不新增 Service Changed、State Restoration 或 OTA `suspendReconnect` 行为。
 
 ---
 
@@ -192,24 +206,24 @@ B 的 15s 超时到          stopScanSession(B) → 正常停止
 
 ---
 
-## 可进一步简化的地方
+## 简化项结论
 
-| 方向 | 说明 |
-|------|------|
-| 保留四层 | 职责已清楚，无需再加 Repository/Manager |
-| 删除半实现能力 | `discoverDescriptors` 若无消费方先移出公开配置，否则补完整 delegate 结果流 |
-| 统一错误语义 | `bluetoothUnavailable` / `notConnected` 要么真正抛出，要么不要留死枚举 |
-| 简化 parsedData 使用 | 保留类型擦除，给 `BleDiscovery` 增加 typed accessor |
-| 优先 FIFO | public `write` 无 priority 参数时可移除排序复杂度 |
-| 配置注册幂等 | `register` 目前只 append；可增加 replaceAll 避免重复注册改变 resolve |
+| 方向 | 状态 | 说明 |
+|------|------|------|
+| 保留四层 | 保留 | 职责已清楚，无需再加 Repository/Manager |
+| 错误语义 | ✅ 已关闭 | `connect` 在蓝牙不可用时抛 `bluetoothUnavailable`；非 ready 写入抛 `notConnected` |
+| typed parsedData | ✅ 已关闭 | `BleDiscovery.parsedData(as:)` 保留类型擦除并提供类型安全读取 |
+| 产品协议配置 | ✅ 已收敛 | `configure(with:)` 整体替换 `configurations`；不提供追加式入口，单产品与多产品使用同一 API |
+| descriptor 发现 | 有意保留的已知限制 | `discoverDescriptors` 仍是配置逃生口，但内核不消费或发布 descriptor 结果；需要结果流时再扩展 |
+| priority 队列 | 有意保留 | `BleWriteCommand` 与 serialized queue 已公开 priority/order 能力；不为简化 FIFO 破坏现有行为 |
 
 ---
 
 ## 验证边界
 
 - 本结论来自静态代码与现有测试交叉检查。
-- 现有测试主要覆盖 UUID、ACK matcher 与 GATT merge（`BleModuleSpec.swift`）。
-- 连接/扫描/重连结论应由 mock 状态机测试和真机蓝牙测试补证。
+- `BleModuleSpec.swift` 已自动化覆盖 UUID、ACK matcher、GATT merge、Session 配置整体替换、`BleReconnectPolicy` 参数保持、UT-04/05 重连循环与 UT-07 non-replay 广播流首事件。
+- connect / scan / GATT 状态机及 write queue 与 CoreBluetooth delegate 的集成 mock 仍缺；相关结论仍需 mock 集成测试和真机蓝牙测试补证。
 
 ### 阶段 1 真机回归建议
 

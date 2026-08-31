@@ -2,7 +2,7 @@
 //  BleModuleSpec.swift
 //  AppStart Tests
 //
-//  Release 1：UUID 等价、ACK Matcher、GattProfile merge。
+//  BLE 内核：UUID、配置合并、广播流与重连策略回归。
 
 import Quick
 import Nimble
@@ -45,6 +45,35 @@ class BleModuleSpec: QuickSpec {
                 let req = Data([0xAA, 0x55, 0x00, 0xC0])
                 let partial = Data([0xAA, 0x55, 0x01, 0xC0, 0xFF])
                 expect(matcher.matches(command: req, response: partial)) == true
+            }
+        }
+
+        describe("BleSession configuration") {
+            it("replaces the complete product configuration list while preserving order") {
+                let session = BleSession(central: BleCentral())
+                let pump = BleConfiguration(logTag: "[Ble/Pump]")
+                let patch = BleConfiguration(logTag: "[Ble/Patch]")
+
+                session.configure(with: [pump, patch])
+                expect(session.configurations.map(\.logTag)) == ["[Ble/Pump]", "[Ble/Patch]"]
+
+                session.configure(with: [patch])
+                expect(session.configurations.map(\.logTag)) == ["[Ble/Patch]"]
+            }
+        }
+
+        describe("BleReconnectPolicy") {
+            it("keeps retry delay and per-attempt timeout independent") {
+                let policy = BleReconnectPolicy(
+                    enabled: true,
+                    maxAttempts: 4,
+                    retryDelay: 0.25,
+                    attemptTimeout: 8
+                )
+                expect(policy.enabled) == true
+                expect(policy.maxAttempts) == 4
+                expect(policy.retryDelay) == 0.25
+                expect(policy.attemptTimeout) == 8
             }
         }
 
@@ -160,7 +189,7 @@ class BleModuleSpec: QuickSpec {
                 waitUntil(timeout: .seconds(1)) { done in
                     let logger = BleLogger(isEnabled: false, tag: "[Ble/Test]")
                     let handler = BleReconnectHandler(
-                        policy: .init(enabled: true, maxAttempts: 3, interval: 0.01),
+                        policy: .init(enabled: true, maxAttempts: 3, retryDelay: 0.01),
                         logger: logger
                     )
                     var attempts = 0
@@ -187,7 +216,7 @@ class BleModuleSpec: QuickSpec {
                 waitUntil(timeout: .seconds(1)) { done in
                     let logger = BleLogger(isEnabled: false, tag: "[Ble/Test]")
                     let handler = BleReconnectHandler(
-                        policy: .init(enabled: true, maxAttempts: 2, interval: 0.01),
+                        policy: .init(enabled: true, maxAttempts: 2, retryDelay: 0.01),
                         logger: logger
                     )
                     var attempts = 0

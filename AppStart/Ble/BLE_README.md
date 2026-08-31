@@ -2,7 +2,9 @@
 
 基于 Swift Concurrency（async/await + AsyncStream）的 CoreBluetooth 封装，支持多页面共享连接、**多产品协议**并存。
 
-> **迭代规划**：特性拓展路线、Release 划分与框架/业务边界见 [`BLE_ROADMAP.md`](BLE_ROADMAP.md)。
+> **文档定位**：本文是当前 BLE 实现的事实来源（source of truth），以 canonical 路径 `AppStart/Ble` 下源码为准；路线与设想不覆盖本文记录的当前行为。
+>
+> **相关文档**：特性拓展路线见 [`BLE_ROADMAP.md`](BLE_ROADMAP.md)，架构评估见 [`BLE_ARCHITECTURE_REVIEW.md`](BLE_ARCHITECTURE_REVIEW.md)，回归基线见 [`BLE_VALIDATION_CHECKLIST.md`](BLE_VALIDATION_CHECKLIST.md)。
 
 ## 功能
 
@@ -19,8 +21,8 @@
 ```
 业务 App
   └─ BleConfiguration + BleAdvDataParser（产品协议）
-       ↓ register
-BleSession（产品注册表 + activeConnection）
+       ↓ configure(with:)
+BleSession（产品协议配置 + activeConnection）
        ↓
 BleCentral（唯一 CBCentralManager）
        ↓
@@ -30,10 +32,11 @@ BlePeripheralConnection（状态机 + GATT + 写队列 + 重连）
 | 层级 | 职责 |
 |------|------|
 | `BleConfiguration` | 单款产品完整协议快照 |
-| `BleSession.register` | App 启动注册各产品 |
+| `BleSession.configure(with:)` | App 启动配置会话支持的全部产品协议 |
 | `BleCentral.scan(products:)` | 混扫；**系统层不按 Service UUID 过滤** |
-| `BleDiscovery.configuration` | 混扫 resolve 命中的配置 |
-| `BlePeripheralConnection` | 连接时绑定配置快照，后续 register 变更不影响已连设备 |
+| `BleDiscovery.configuration` | 混扫 resolve 命中的产品配置（尚未合并广播动态 GATT） |
+| `BleDiscovery.effectiveConfiguration` | `configuration + parsedData` 动态 GATT merge 后的连接配置 |
+| `BlePeripheralConnection` | 连接时绑定有效配置快照，后续 Session 配置变更不影响已连设备 |
 
 **原则：** 配置跟 `BleConfiguration` 走，不跟页面走；无外部 productId，展示名等 UI 信息由 App 层维护。
 
@@ -81,11 +84,11 @@ enum BleProducts {
 
 推荐匹配策略：`BleParserValidatedMatchingStrategy`（parser 解析成功即命中；可选 `names` 做 LocalName 前置过滤）。
 
-### 2. App 入口注册
+### 2. 配置 Session
 
 ```swift
-// 推荐：幂等设置，App 初始化流程重复执行也不会追加重复配置
-BleSession.shared.setRegisteredConfigurations(BleProducts.all)
+// 每次调用整体替换；数组顺序决定混扫 resolve 优先级
+BleSession.shared.configure(with: BleProducts.all)
 ```
 
 ### 3. 扫描
@@ -93,9 +96,10 @@ BleSession.shared.setRegisteredConfigurations(BleProducts.all)
 ```swift
 Task {
     for await discovery in BleSession.shared.scanAllProducts(timeout: 20) {
-        let config = discovery.configuration
-        let parsed = discovery.parsedData
-        // 按 configuration.logTag 或 parsed 类型区分产品
+        let productConfig = discovery.configuration
+        let effectiveConfig = discovery.effectiveConfiguration
+        let parsed: MyPumpParser.ParsedData? = discovery.parsedData(as: MyPumpParser.ParsedData.self)
+        // 展示可用产品配置；连接/GATT 判断必须用 effectiveConfiguration
     }
 }
 ```
@@ -109,11 +113,17 @@ for await discovery in BleSession.shared.scan(configuration: BleProducts.pump, t
 ### 4. 连接
 
 ```swift
-let connection = try await BleSession.shared.connect(discovery: discovery) // 默认 15s；可传 timeout:
+let connection = try await BleSession.shared.connect(
+    discovery: discovery,
+    timeout: 15,
+    setAsActive: true
+)
 // activeConnection 已由 connect 自动赋值，无需再手动设置
 ```
 
-`discovery.configuration` 为 nil 时抛 `BleError.configurationNotResolved`。App 层请只走 `BleSession.connect(discovery:)`，不要绕过 Session 直接调 `BleCentral.connect`。
+`connect(discovery:)` 内部只使用 `discovery.effectiveConfiguration`：先取 resolve 得到的 `configuration`，再把 `parsedData` 提供的主 / 附加 GATT 动态 merge 成连接快照；无法生成时抛 `BleError.configurationNotResolved`。App 层请只走此入口，不要把 `discovery.configuration` 直接传给 `BleCentral.connect`，否则会丢失子型号动态 GATT。
+
+`setAsActive` 默认为 `true`；多设备并行连接时传 `false`，不会覆盖现有 `activeConnection`。可用 `BleSession.shared.connection(for:)` 查询某个外设已登记的连接。
 
 ### 5. 读写与状态
 
@@ -121,7 +131,7 @@ let connection = try await BleSession.shared.connect(discovery: discovery) // �
 for await state in await connection.states() { ... }
 for await update in await connection.characteristicUpdates() { ... }
 try await connection.write(data)
-let mtu = connection.maximumWriteValueLength()
+let maximum = connection.maximumWriteValueLength(for: .withoutResponse)
 try await connection.writeChunked(largeData) // 仅 OTA/批量数据显式选择分片
 BleSession.shared.disconnectActiveConnection()
 ```
@@ -148,14 +158,17 @@ CBCentral didDiscover
 
 ```
 BleSession.connect(discovery:)  // App 推荐入口
-  → private connect(peripheral, discovery.configuration)
-  → BleCentral.connect（绑定配置快照）
+  → discovery.effectiveConfiguration
+       = configuration.merged(withParsedData: parsedData)
+  → BleCentral.connect（绑定有效配置快照）
   → 物理连接 → discoverServices → discoverCharacteristics
   → 订阅 Notify 并等待 `didUpdateNotificationStateFor` 确认 → 定位 writeChar → .ready
   → waitUntilReady() 返回；activeConnection 已赋值
 ```
 
 状态机：`connecting → connected → ready`；自动重连为 `reconnecting(attempt:maximumAttempts:)`；失败 `failed` / `timedOut`；断开 `disconnected`。
+
+**Notify barrier：** `connect` 成功不等于物理链路已连。主 Profile 与所有 supplementary Profile 配置的 Notify 都必须找到，且各自收到 `didUpdateNotificationStateFor` 成功确认后才进入 `.ready`；任一失败都不会提前返回可用连接。
 
 ---
 
@@ -172,7 +185,7 @@ BleSession.connect(discovery:)  // App 推荐入口
 | 扫描过滤 | `BlePeripheralMatching.swift` | 第一道过滤：要不要这条广播 |
 | 广播解析 | `BleAdvDataParser.swift` | 第二道：解析 MAC 等业务字段 |
 | 多产品 | `BleProductRegistry.swift` | OR 匹配 + resolve 顺序 |
-| App 入口 | `BleSession.swift` | register / scan / connect |
+| App 入口 | `BleSession.swift` | configure / scan / connect |
 | Central | `BleCentral.swift` | CBCentralManager + 扫描会话 |
 | 广播流 | `BleAsyncBroadcastStream.swift` | 多页面订阅同一事件源 |
 | 连接句柄 | `BlePeripheralConnection.swift` | 状态机 + 写 + Notify |
@@ -193,8 +206,9 @@ BleSession.connect(discovery:)  // App 推荐入口
 |------|------|
 | `peripheral` | CoreBluetooth 外设对象 |
 | `advertisement` | 原始广播 + RSSI |
-| `parsedData` | `advParser` 解析结果（`Any?`，App 层 as 成具体类型） |
-| `configuration` | 混扫 resolve 命中的 `BleConfiguration`；临时扫描无注册时为 nil |
+| `parsedData` | `advParser` 解析结果（`Any?`）；公开 `parsedData(as:)` 提供类型安全读取 |
+| `configuration` | 混扫 resolve 命中的产品配置；临时扫描未配置产品时为 nil |
+| `effectiveConfiguration` | `configuration` 与 `parsedData` 动态 GATT merge 的结果；连接链唯一配置来源 |
 
 **`BlePeripheralState`** — 连接状态机：
 
@@ -211,6 +225,10 @@ connecting → connected → ready(BleChannelReadyInfo)
 - `ready`：写特征已定位、全部目标 Notify 已确认订阅，可 `write`
 - `connect()` 的 `await` 在 `.ready` 时 resume；总超时覆盖物理连接 + GATT + Notify 确认
 
+**`BleScanState`** — 扫描生命周期：`.started` 表示底层 `startScanning` 已调用，`.stopped` 表示超时、手动停止、stream 取消或被新扫描替换后停止。
+
+**`BleReconnectPhase` / `BleReconnectResult`** — 重连循环内部阶段：`.started`；结束时为 `.stopped(.success)` 或 `.stopped(.exhausted)`。业务进度以公开连接状态 `.reconnecting(attempt:maximumAttempts:)` / `.ready` / `.timedOut` 为准；当前没有独立公开的重连 phase stream。
+
 **`BleCharacteristicUpdate`** — Notify 推送，供 UI 订阅；写队列也会消费同一路径。
 
 **`BleDiscovery.displayName`** — 扫描展示名（LocalName → `peripheral.name`），不参与 matching / yield 门禁。
@@ -219,18 +237,33 @@ connecting → connected → ready(BleChannelReadyInfo)
 
 | 错误 | 触发点 |
 |------|--------|
-| `configurationNotResolved` | `connect(discovery:)` 时 discovery 无 configuration |
+| `bluetoothUnavailable(CBManagerState)` | 非 `.poweredOn` 时连接；扫描因 API 为非 throwing stream，会结束并由 `centralStates()` 报告具体状态 |
+| `notConnected` | 未 ready、断开或重连中调用写入 |
+| `writeCharacteristicNotFound` | GATT 未找到主 writeChar，或 `write(_:to:)` 的 UUID 不存在 / 不可写 |
 | `connectionTimeout` | `BleSession.connect` 默认 15s（或自定义 `timeout`）内未到 `.ready` |
-| `channelSetupFailed` | GATT 发现失败 |
-| `writeCharacteristicNotFound` | 未找到 writeChar 就 write |
-| `writeTimeout` | 串行队列 ACK 超时 |
-| `cancelled` | 断开时队列被清空 |
+| `connectionFailed(Error?)` | `didFailToConnect`，或意外断连导致本轮 ready 等待失败 |
+| `channelSetupFailed(Error)` | Service / Characteristic 发现或 Notify barrier 失败；底层非 `BleError` 会映射到此 case |
+| `writeTimeout` | serialized 写入在发送完成后、指定 timeout 内未匹配 Notify ACK |
+| `writeFailed(Error)` | `.withResponse` 的 `didWriteValueFor` 返回错误，或队列底层发送失败 |
+| `writeDataTooLong(actual:maximum:)` | 普通 `write` 超过对应 write type 的单次上限，或分片上限无效 |
+| `cancelled` | 断连 / 重配时清空写队列、取消 withoutResponse 容量等待，或内部任务失效 |
+| `configurationNotResolved` | `connect(discovery:)` 无法生成 `effectiveConfiguration` |
+
+以上为当前 `BleError` 的 **11 个 case**。注意 GATT 缺主 write 特征会直接保留 `writeCharacteristicNotFound`，其余普通 GATT 错误才包装为 `channelSetupFailed`。
 
 ---
 
 ### 2. `BleConfiguration.swift` — 单产品协议快照
 
-一款产品的**全部蓝牙约定**集中在一个 struct 里，连接时拷贝一份快照，后续 `register` 变更不影响已连设备。
+一款产品的**全部蓝牙约定**集中在一个 struct 里，连接时拷贝一份快照，后续 Session 配置变更不影响已连设备。
+
+#### 产品配置、有效配置与连接快照
+
+1. `BleDiscovery.configuration`：resolve 命中的**产品配置**，适合产品识别 / 展示，不含本条广播决定的动态 GATT。
+2. `BleDiscovery.effectiveConfiguration`：把 `parsedData as? BleProvidesGattProfile` overlay 到主 Profile，并用 `BleProvidesSupplementaryGattProfiles` 提供的列表替换附加 Profile。
+3. `connection.configurationSnapshot`：实际建链时冻结的**有效配置**。ready 连接不受后续 Session 配置变化影响；终态句柄由新 discovery 再连接时才刷新。
+
+因此连接路径固定为 `BleSession.connect(discovery:) → discovery.effectiveConfiguration → BleCentral.connect`；业务层不得直接用 `discovery.configuration` 建链。
 
 | 字段 | 扫描阶段 | 连接阶段 |
 |------|----------|----------|
@@ -252,7 +285,7 @@ connecting → connected → ready(BleChannelReadyInfo)
 - 写队列**只**调用 `ackMatcher.matches(command:response:)`，不在传输层做 payload 相等/heuristic 过滤
 - **ACK vs 设备主动 Notify 的区分**由 App 层 Matcher 完成（如 Pump 要求 `byte[2]==0x01`）
 - `BleByteAckMatcher`：按字节下标比对（默认 `[0, 1, 3]`），**仅示例**；弱匹配无法区分 REQ 形上报
-- 产品专属 Matcher 在 **App 层** 实现；完整产品示例见 [AppTemplate BLE 文档](../../../AppTemplate/AppTemplate/Modules/Main/Func/BLE/BLE_README.md)
+- 产品专属 Matcher 在 **App 层** 实现；完整产品示例见 [AppTemplate BLE 文档](../../../AppTemplate/AppTemplate/Modules/Main/Func/BLE/Support/BLE_README.md)
 
 **串行写 + `await connection.write()`** — 等 ACK 再发下一条（指令链在 App 层编排）：
 
@@ -279,10 +312,12 @@ Parser 解析结果按需实现：
 | `BleProvidesSupplementaryGattProfiles` | 子型号附加通道（如 M5 0x07 → secondary） |
 
 ```swift
-BleSession.shared.register(BleConfiguration(
-    gattProfile: primaryProfile,  // 产品级默认；子型号由 parser overlay
-    // matching / writeQueue / parser ...
-))
+BleSession.shared.configure(with: [
+    BleConfiguration(
+        gattProfile: primaryProfile,  // 产品级默认；子型号由 parser overlay
+        // matching / writeQueue / parser ...
+    )
+])
 
 let connection = try await BleSession.shared.connect(discovery: discovery)
 // 内部：discovery.effectiveConfiguration merge 主 + 附加 GATT
@@ -295,8 +330,8 @@ for await update in await connection.characteristicUpdates(matching: secondaryNo
 }
 ```
 
-- **静态产品**：注册时写死 `gattProfile`
-- **动态子型号**：注册默认值 + parser 实现上述协议（需 connect 时有 parsedData）
+- **静态产品**：产品配置中写死 `gattProfile`
+- **动态子型号**：产品配置提供默认值 + parser 实现上述协议（需 connect 时有 parsedData）
 - `supplementaryGattProfiles`：仅 discover / subscribe；附加 Notify 不参与主 `write(_:)` ACK
 
 **控制面 / 数据面（写策略）**
@@ -350,19 +385,19 @@ App 层应实现产品专属 parser（如吸奶器 MAC 格式），放在业务�
 // 混扫 matching = 所有产品 OR（第一道：可能是自家设备）
 products.compositeMatching
 
-// resolve = 按 register 顺序取第一个命中的 configuration（定案：用哪款 advParser / GATT）
+// resolve = 按 configurations 顺序取第一个命中的 configuration（定案：用哪款 advParser / GATT）
 products.resolve(peripheral:advertisementData:)
 ```
 
 | 机制 | 时机 | 规则 | 用途 |
 |------|------|------|------|
 | `compositeMatching` | 混扫 `scan(products:)` 合并 matching | 任一产品 matching 命中 | 软件层 OR 过滤（系统 scan 仍全量） |
-| `resolve` | `handleDiscovery` 每条广播 | **先 register 者优先** | 写入 `BleDiscovery.configuration`，决定 parser 与连接协议 |
+| `resolve` | `handleDiscovery` 每条广播 | **configurations 中位置靠前者优先** | 写入 `BleDiscovery.configuration`，决定 parser 与连接协议 |
 
 **关键规则：**
 
-- 两款产品 matching 同时命中 → **先 register 的赢**
-- resolve 结果写入 `BleDiscovery.configuration`，连接时直接用，无需 App 再猜产品类型
+- 两款产品 matching 同时命中 → **`configurations` 中位置靠前者优先**
+- resolve 结果写入 `BleDiscovery.configuration`，连接时再经 `effectiveConfiguration` 动态 merge；无需 App 猜产品类型或自行 merge
 - 无 productId 字符串；区分产品靠 `configuration` 引用或 `logTag` / `parsedData` 类型
 
 ---
@@ -373,17 +408,26 @@ products.resolve(peripheral:advertisementData:)
 
 | API | 作用 |
 |-----|------|
-| `register(_:)` / `register([:])` | 追加产品配置，同步 Central 日志 |
-| `setRegisteredConfigurations(_:)` | 幂等替换启动期产品配置，避免重复注册改变 resolve |
-| `configure(_:)` | 单产品场景更新 Central 默认配置 |
+| `configurations` | 当前会话支持的全部产品协议配置；只读，数组顺序决定 resolve 优先级 |
+| `configure(with:)` | 整体替换会话配置；不追加、不自动去重，单产品与多产品使用同一入口 |
 | `scan(configuration:)` | 扫单款产品 |
-| `scan(at:)` | 按注册下标扫 |
-| `scanAllProducts()` | 混扫全部已注册产品 |
+| `scan(at:)` | 按 `configurations` 下标扫描 |
+| `scanAllProducts()` | 混扫 `configurations` 中的全部产品 |
 | `stopScanning()` | 停止当前扫描，业务层无需下探 Central |
-| `connect(discovery:)` | 从扫描结果连接（**App 唯一推荐入口**；内部 private connect 绑定 resolve 后的 configuration） |
+| `connect(discovery:timeout:setAsActive:)` | 从扫描结果连接（**App 唯一推荐入口**）；绑定 `effectiveConfiguration`，默认 15s、默认设为主连接 |
+| `connection(for:)` | 按 `CBPeripheral.identifier` 查询 Central registry 中的连接 |
 | `disconnectActiveConnection()` | 主动断开并清空当前主连接 |
 
 跨页面共享：`activeConnection` + `central.activeConnections`。
+
+阶段 2 同时公开：
+
+- `connection.configurationSnapshot`：读取建链时冻结的有效配置。
+- `discovery.parsedData(as:)`：类型不匹配返回 nil，不做强转崩溃。
+- `central.centralStates()`：`CBManagerState` replayLatest 状态流。
+- `central.scanStates()`：`BleScanState.started / stopped` replayLatest 状态流。
+
+`setAsActive: false` 仅控制 Session 的主连接引用，不改变 Central registry；适用于多设备连接。
 
 ---
 
@@ -453,6 +497,41 @@ Actor 实现，维护 `[UUID: Continuation]` 字典。
 
 替代方案：注释里提到可用 `AsyncAlgorithms` 的 `AsyncChannel` 简化实现。
 
+#### 并发与线程模型
+
+- `BleAsyncBroadcastStream` 本身是 actor；订阅注册、latest 缓存与 continuation 字典都在 actor 内串行，非 replay Notify 也在 stream 返回前完成注册。
+- `BleCentral.connectTasks` 只用 `NSLock` 保护很短的同设备 in-flight Task 注册 / 移除；同一 peripheral 的并发调用共享一个 Task，真正 connect 流程切到 `@MainActor`。
+- CoreBluetooth Central delegate 回调统一用 `Task { @MainActor in ... }` 转发；扫描会话创建、替换、停止和状态迁移也在 MainActor 路径推进。
+- `BleWriteCommandQueue` 用独立锁保护优先队列、单条 in-flight、timeout Task 与 continuation；`sendingRequestID` 同时充当等待传输许可期间的背压门闩，避免重复发送。
+- `.withoutResponse` 容量等待者由 `writeCapacityLock` 保护；`peripheralIsReady(toSendWriteWithoutResponse:)` 恢复等待者，取消 / 断连则以 `cancelled` 结束。
+- **整体 `BleCentral` / `BleSession` / `BlePeripheralConnection` 当前未标注 `@MainActor`**，以保持现有同步公开 API 兼容；不能把「delegate 在 MainActor 转发」误写成「整个模块 MainActor 隔离」。
+
+#### 公开状态流总览
+
+```
+蓝牙：centralStates()
+  unknown / resetting / unsupported / unauthorized / poweredOff / poweredOn
+
+扫描：scanStates()
+  .started → .stopped
+
+连接：connection.states()
+  .connecting → .connected → .ready
+             ↘ .failed / .timedOut / .disconnected
+
+重连（同一 connection 状态流）：
+  .disconnected(.unexpected) → .reconnecting(n/max)
+  → .connected → [GATT + Notify barrier] → .ready
+  → 下一次 .reconnecting，或最终 .timedOut
+
+写入（无独立公开状态 stream）：
+  ready → MTU 校验 → direct / serialized 入队
+  → withoutResponse 容量门禁 → writeValue
+  → Notify ACK / writeResponse / timeout / cancelled
+```
+
+蓝牙、扫描、连接三类状态流均 `replayLatest`，新订阅者先收到最近状态；`characteristicUpdates()` 为非 replay 数据流。写入结果由每次 `await write` 返回 / 抛错表达，不存在独立写状态流。重连循环的单次连接失败 / 单次 attempt timeout 会被 `isAutoReconnecting` 抑制，不短暂发布 `.failed` / `.timedOut` 终态；业务只看到尝试进度，成功时 `.ready`，全部耗尽后才 `.timedOut`。
+
 ---
 
 ### 9. `BlePeripheralConnection.swift` — 单设备生命周期
@@ -481,8 +560,10 @@ performConnect (Central)
 - **指定特征**：`write(_:to:)` → 已发现的 `peripheral.services` 中按 UUID 查找（`BleUUID.matches`）
 - 目标即主 write → 与 `write(_:)` 相同（可走写队列）
 - 其它 UUID → 不进主 ACK 队列，但仍统一执行 ready、MTU 与 withoutResponse 背压检查
-- 普通 `write` 超过 `maximumWriteValueLength` 时抛 `writeDataTooLong`，不会静默拆分协议帧
-- OTA/批量数据显式调用 `writeChunked`，按当前 MTU 分片；`peripheralIsReady` 后续写
+- `maximumWriteValueLength(for:)` 按 `.withResponse` / `.withoutResponse` 查询 CoreBluetooth 当前链路上限（通常由协商 MTU 推导，两个 write type 可能不同）
+- 普通 `write` 超过对应上限时抛 `writeDataTooLong`，不会静默拆分协议帧
+- OTA/批量数据显式调用 `writeChunked`，按当前上限顺序分片；该 API 不进入协议 ACK 队列
+- `.withoutResponse` 在 `canSendWriteWithoutResponse == false` 时挂起，收到 `peripheralIsReady` 才继续；断连 / Task 取消会释放等待者
 
 #### Notify 双消费（重要）
 
@@ -534,6 +615,8 @@ notifyUnexpectedDisconnect / notifyConnectFailed
 - `notifyUserDisconnect()` → 设 flag + stop，不再重连
 - 每次 attempt 受 `BleReconnectPolicy.attemptTimeout` 限制
 - 重连成功后 `notifyConnected()` 重置 attempts
+- `.started / .stopped(.success|.exhausted)` 由 `BleReconnectPhase` / `BleReconnectResult` 表达，当前供连接内部协调；公开 UI 订阅使用 `connection.states()`
+- 自动重连期间抑制单次 attempt 的 `.failed` / `.timedOut`，避免 UI 在重试间隙误判最终失败；只有耗尽才发布 `.timedOut`
 
 ---
 
@@ -552,6 +635,8 @@ notifyUnexpectedDisconnect / notifyConnectFailed
 ```
 enqueue → 入队 + 挂起 continuation
 processNextIfNeeded → 队首无 timeoutTask 时 writeValue（同一时刻仅一条 in-flight）
+  → withoutResponse 无容量：等待 peripheralIsReady（此时尚不计 ACK timeout）
+  → 真正 writeValue 后启动 ACK timeout
   ↓
 handleCharacteristicUpdate → ackMatcher 匹配队首 → completeHead → 发下一条
 handleWriteConfirmation   → withResponse 模式在此 complete
@@ -576,7 +661,7 @@ cancelAll                   → 断开时清空，throw cancelled
 
 - `BleConfiguration.debugLog = true` 时才输出
 - 写入 `LogM.tag(normalizedTag).debug(...)`
-- `BleCentral.syncLogger(from:)` 在 register / scan / connect 时合并多产品 logTag
+- `BleCentral.syncLogger(from:)` 在 Session 配置、scan / connect 时合并多产品 logTag
 
 **前置条件：** App 启动时 `LogM.shared.setup(...).launch()`，否则看不到日志。
 
@@ -587,17 +672,19 @@ cancelAll                   → 断开时清空，throw cancelled
 #### 扫描 → 连接
 
 ```
-App: BleSession.register(products)
+App: BleSession.configure(with: products)
 App: for await d in scanAllProducts()
   → BleCentral.scan(products:)
   → startScanning(serviceUUIDs: nil)
   → didDiscover → handleDiscovery → yield(d)
 
 App: try await connect(discovery: d)
-  → BleSession private connect(peripheral, d.configuration)
-  → BleCentral.connect → activeConnection 赋值
+  → d.effectiveConfiguration
+      = d.configuration?.merged(withParsedData: d.parsedData)
+  → BleSession.connect → BleCentral.connect
   → BlePeripheralConnection.waitUntilReady()
-  → didConnect → GattSetup → .ready
+  → didConnect → GattSetup → 全部 Notify 确认 → .ready
+  → BleSession 按 setAsActive 决定是否赋值 activeConnection
 ```
 
 #### 写入（serialized）
@@ -605,7 +692,8 @@ App: try await connect(discovery: d)
 ```
 App: try await connection.write(c0Data)
   → writeQueue.enqueue
-  → processNextIfNeeded → writeValue
+  → processNextIfNeeded
+  → withoutResponse 容量门禁 → writeValue → 启动 ACK timeout
   → didUpdateValueFor → ackMatcher → completeHead
   → enqueue 的 continuation resume
 ```
@@ -620,16 +708,39 @@ App: try await connection.write(c0Data)
 | `BleAdvDataParser` 协议 | 吸奶器/体温贴/光疗 parser 实现 |
 | `BleAckMatcher` 协议 | 产品专属 ACK 规则（可选） |
 | 扫描/连接/写队列/重连 | UI Controller、命令帧组装、页面跳转 |
-| `BleSession.shared` | AppDelegate 注册产品 |
+| `BleSession.shared` | App 启动配置全部产品协议 |
 
 业务层**不应**在框架外加 GATT merge、productId 映射、connectResolved 等旁路；协议差异全部收进各自的 `BleConfiguration`。
 
 ---
 
+### 扩展指南
+
+新增产品或子型号时，沿现有扩展点组合，不修改 Central / Connection 稳定主链：
+
+1. 实现 `BleAdvDataParser`，把广播解析为产品自己的强类型数据；优先用 `BleParserValidatedMatchingStrategy` 复用同一解析规则做 matching。
+2. 创建 `BleConfiguration`，集中配置主 GATT、supplementary GATT、写队列、重连和日志；在 App 启动用 `configure(with:)` 一次性配置全部产品协议。
+3. 子型号由广播决定 UUID 时，让解析结果实现 `BleProvidesGattProfile`；有附加 Service 时实现 `BleProvidesSupplementaryGattProfiles`。框架会在 `effectiveConfiguration` 中 merge。
+4. 产品有协议 ACK 时，在 App 层实现专属 `BleAckMatcher`；不要把 CID、CT、序列号等业务规则写入内核。
+5. 页面只消费 `scanAllProducts` / `connect(discovery:)` / 状态流 / Notify 流；多设备连接用 `setAsActive: false` 与 `connection(for:)` 管理句柄。
+6. 大数据传输先选目标 write type，再读 `maximumWriteValueLength(for:)`；只有明确允许拆帧的协议才调用 `writeChunked`。
+
+### 当前已知限制
+
+- **Service Changed 未处理**：没有实现 `didModifyServices` 后的原地 GATT 重发现；固件升级导致服务变化时需断开并重新扫描 / 连接。
+- **State Restoration 未实现**：未配置 CoreBluetooth restoration identifier，也不处理系统终止后的 Central / Peripheral 恢复。
+- **Descriptor 结果未发布**：`discoverDescriptors = true` 只调用 `discoverDescriptors(for:)`；当前没有 descriptor delegate 消费、缓存或公开结果流。
+- **无 OTA 协议实现**：已有 MTU、显式分片和 withoutResponse 背压底座，但不包含 JL / Bes 等厂商 OTA 状态机、校验、断点续传或升级期重连协调。
+- **无 Mesh / BLE Audio**：不实现 Tuya / Telink 等 BLE Mesh，也不覆盖 BLE Audio；它们不是本 GATT 控制内核的透明扩展。
+
+上述能力若进入需求，应先在 App / 产品层确认协议边界；确属通用传输能力后再扩展内核，避免把单产品流程下沉。
+
+---
+
 ### 常见陷阱
 
-1. **resolve 顺序** — 混扫时先 register 的产品优先；调整注册顺序可改变 resolve 结果
-2. **配置快照** — 连接后改 register 不影响已连设备；需重连才用新配置
+1. **resolve 顺序** — 混扫按 `configurations` 数组顺序匹配；调整顺序可改变 resolve 结果
+2. **配置快照** — `configuration` 是产品配置，`effectiveConfiguration` 才是连接输入，`configurationSnapshot` 是建链冻结结果；连接后重新配置 Session 不影响已连设备
 3. **Notify 双消费** — UI 订阅与 ACK 队列共用 `didUpdateValueFor`
 4. **matching 与 parser 重复逻辑** — 推荐 `BleParserValidatedMatchingStrategy` 共用同一 parser，避免两处规则不一致
 5. **LocalName** — 优先广播里的 LocalName，`peripheral.name` 可能滞后为空
@@ -663,9 +774,11 @@ App: try await connection.write(c0Data)
 | `BleCompositeMatchingStrategy` | 多产品 OR 匹配 |
 | `BleCharacteristicUpdate` | Notify 特征值变更 |
 | `BleWriteAck` | 串行写 ACK 结果（request + response） |
-| `BleDiscovery` | 扫描结果（含 `configuration`、`parsedData`、`displayName`） |
+| `BleDiscovery` | 扫描结果（含 `effectiveConfiguration`、typed parsedData、displayName） |
+| `BleScanState` | 扫描 started / stopped 状态 |
+| `BleReconnectPhase` / `BleReconnectResult` | 重连循环阶段与结果 vocabulary |
 | `BleCentral` | 扫描、连接 |
-| `BleSession` | 注册表 + Session |
+| `BleSession` | 产品协议配置 + Session |
 | `BlePeripheralConnection` | 单设备句柄 |
 
 ---
@@ -676,6 +789,8 @@ App: try await connection.write(c0Data)
 Ble/
 ├── BLE_README.md               # 实现细节、代码走读（本文档）
 ├── BLE_ROADMAP.md              # 特性拓展迭代规划
+├── BLE_ARCHITECTURE_REVIEW.md  # 当前架构与市场场景评估
+├── BLE_VALIDATION_CHECKLIST.md # 功能验证与回归基线
 ├── AGENTS.md                   # 模块约束补充
 ├── BleEnums.swift              # 公共类型、错误码
 ├── BleConfiguration.swift      # 协议配置模型

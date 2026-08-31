@@ -1,7 +1,7 @@
 # AppStart Ble 特性拓展迭代文档
 
-> 版本：v1.0 · 2026-08-21  
-> 状态：规划（Planning）  
+> 版本：v1.2 · 2026-08-31
+> 状态：Release 1 / 2 已完成；Release 3 规划中
 > 关联：`BLE_README.md`（实现细节）、`AGENTS.md`（约束）
 
 ---
@@ -28,10 +28,11 @@ AppStart Ble 定位为 **IoT / 穿戴类设备的 Lute 协议传输内核**：
 | 原则 | 说明 |
 |------|------|
 | 配置跟产品走 | 协议差异收进 `BleConfiguration`，不跟页面走 |
-| 连接时快照 | `connect` 时 merge 解析结果；已连设备不受后续 `register` 影响 |
+| 连接时快照 | `connect` 时 merge 解析结果；已连设备不受后续 Session 配置变化影响 |
 | 单 Central | App 内唯一 `CBCentralManager`，禁止第二套 Central |
 | App 回连默认 | 使用 `BleReconnectHandler`；不默认开启 iOS 17 系统 AutoReconnect |
 | 业务索引在 App | MAC / deviceId 映射由业务 Coordinator 维护，不进框架 |
+| 保持 API 兼容 | 本轮不做整体 `@MainActor` 迁移；以局部 MainActor 串行化和短锁保护并发边界 |
 
 ---
 
@@ -53,7 +54,7 @@ AppStart Ble 定位为 **IoT / 穿戴类设备的 Lute 协议传输内核**：
 
 | 能力 | 说明 |
 |------|------|
-| 多产品混扫 + resolve | `BleProductRegistry`，register 顺序定案 |
+| 多产品混扫 + resolve | `BleProductRegistry`，按 `configurations` 数组顺序定案 |
 | 全量扫描 + matching 过滤 | 系统层 `serviceUUIDs: nil` |
 | 连接状态机 | `connecting → connected → ready` |
 | 串行写队列 | `.serialized` + `BleAckMatcher` + 超时 |
@@ -90,7 +91,7 @@ AppStart Ble 定位为 **IoT / 穿戴类设备的 Lute 协议传输内核**：
 
 | ID | 能力 | 优先级 | 阶段 | 说明 |
 |----|------|--------|------|------|
-| **C3** | UUID 匹配正确性 | **P0** | R1 | `CBUUID` 比较 + 单测；必要时 `BleUUID.equivalent` |
+| **C3** | UUID 匹配正确性 | **P0** | R1 | `CBUUID` 比较 + `BleUUID.matches` 等价匹配与单测 |
 | **A3** | 同协议多子型号（动态 GattProfile） | **P0** | R1 | Parser 输出 Profile，`connect` 时 merge 进快照 |
 | **S1** | 串行写 + ACK 稳定化 | **P0** | R1 | 误匹配防护、Pump ACK Matcher 示例、配网链 Demo |
 | **R1** | 混扫 / 多连接 / 重连打稳 | **P0** | R1 | bugfix、边界测试、文档 |
@@ -148,7 +149,7 @@ transport Config 连接 → 断开 → ota Config 连接 → 第三方 SDK 写�
 1. Configuration 一律存 `CBUUID`
 2. GattSetup 用 `characteristic.uuid == configuredUUID` 比较
 3. 补单测：短 UUID、`0000XXXX-...`、`00000000-XXXX-...` 等布局
-4. 单测失败时再补 `BleUUID.equivalent(_:_:)`
+4. Base UUID 布局通过 `BleUUID.matches(_:_:)` 统一等价匹配，并由单测固定行为
 
 ### 5.5 动态 GattProfile（A3）
 
@@ -159,7 +160,7 @@ transport Config 连接 → 断开 → ota Config 连接 → 第三方 SDK 写�
 // connect 时：effectiveConfiguration merge 主 + 附加 GATT
 ```
 
-避免为每个 PType 注册多个冲突 Configuration 抢 resolve。
+避免为每个 PType 配置多个冲突 Configuration 抢 resolve。
 
 ### 5.6 ACK Matcher 推荐（Pump / 0xAA 0x55 协议）
 
@@ -207,7 +208,7 @@ struct BlePumpAckMatcher: BleAckMatcher {
 
 ---
 
-### Release 2 — 可选副通道（P1）
+### Release 2 — 可选副通道（P1） ✅ 2026-08-31
 
 **目标**：主控制 + 埋点并行，不引入 OTA 多通道复杂度。
 
@@ -228,7 +229,7 @@ struct BlePumpAckMatcher: BleAckMatcher {
 
 ---
 
-### Release 3 — OTA 协作（P2）
+### Release 3 — OTA 协作（P2） 📝 规划中
 
 **目标**：第三方 OTA SDK 以极简方式接入，框架不实现 OTA 协议。
 
@@ -236,7 +237,8 @@ struct BlePumpAckMatcher: BleAckMatcher {
 
 - [ ] 文档：OTA 会话切换模式（transport ↔ ota Configuration）
 - [ ] `suspendReconnect()` / `resumeReconnect()` on connection 或 session
-- [ ] 暴露 `CBPeripheral` + 目标 `CBCharacteristic` 供 SDK 使用（已有，文档化）
+- [x] `CBPeripheral` 已通过 `BlePeripheralConnection.peripheral` public 暴露
+- [ ] 文档化目标 `CBCharacteristic` 的 SDK 接入边界；当前没有新的 public characteristic 句柄 API
 
 **AppTemplate 验收**
 
@@ -272,8 +274,8 @@ struct BlePumpAckMatcher: BleAckMatcher {
 | `BleAdvDataParser` / Profile | Pump/T31/网关 parser |
 | `BleAckMatcher` 协议 + 示例 | Pump 等具体 Matcher |
 | 扫描 / 连接 / GATT / 写队列 | 配网 Strategy、PumpDevice 指令 |
-| `BleSession` | AppDelegate 注册、Coordinator |
-| suspendReconnect | OTA / 绑定会话标记 |
+| `BleSession` | App 启动产品协议配置、Coordinator |
+| suspendReconnect（规划中） | OTA / 绑定会话标记 |
 | — | MAC ↔ connection 索引 |
 | — | F0-F7 机型脚本、加解密 |
 | — | JL/Bes OTA SDK |
@@ -315,6 +317,7 @@ struct BlePumpAckMatcher: BleAckMatcher {
 |------|------|------|
 | 2026-08-21 | v1.0 | 初版：基于 Momcozy 业务多样性反推框架演进；明确不做项与优先级 |
 | 2026-08-22 | v1.1 | Release 1 完成：BleUUID、GattProfile、PumpAckMatcher、Demo |
+| 2026-08-31 | v1.2 | 同步当前源码：Release 1/2 完成、Release 3 规划中；校准 UUID、setAsActive、CBPeripheral 与并发兼容边界 |
 
 ---
 

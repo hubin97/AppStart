@@ -85,7 +85,7 @@ Moya `TargetType` 定义接口 → `NetworkFetch` / `NetworkAsync` 发起请求 
 
 ### Ble
 
-业务层为每款产品定义 `BleConfiguration` + `BleAdvDataParser`，经 `BleSession.register` 注册后混扫、连接、写入。App 侧推荐只使用 `BleSession.connect(discovery:)`。详见 [BLE_README.md](AppStart/Ble/BLE_README.md)。
+业务层为每款产品定义 `BleConfiguration` + `BleAdvDataParser`，通过 `BleSession.configure(with:)` 一次性配置后混扫、连接、写入。App 侧推荐只使用 `BleSession.connect(discovery:)`。详见 [BLE_README.md](AppStart/Ble/BLE_README.md)。
 
 ### ProgressHUD
 
