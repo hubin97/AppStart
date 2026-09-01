@@ -11,19 +11,22 @@ import UIKit
 // MARK: - global var and methods
 
 // MARK: - main class
+@MainActor
 open class TabBarController: UITabBarController, UITabBarControllerDelegate, Navigatable {
     
     var viewModel: ViewModel?
-    public var navigator: Navigator!
+    // 同 ViewController：navigator 在 init 内赋值，避免 @MainActor 默认值在非隔离上下文初始化。
+    public var navigator: Navigator
 
     // 自定义初始化方法
-    public init(viewModel: ViewModel?, navigator: Navigator = Navigator.default) {
+    public init(viewModel: ViewModel?, navigator: Navigator? = nil) {
         self.viewModel = viewModel
-        self.navigator = navigator
+        self.navigator = navigator ?? .default
         super.init(nibName: nil, bundle: nil)
     }
     
     public init() {
+        self.navigator = .default
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -53,22 +56,22 @@ open class TabBarController: UITabBarController, UITabBarControllerDelegate, Nav
     ///   - normalImages: 常态图片数组
     ///   - selectedImages: 选中图片数组
     open func addChildVcs(naviVcs: [UIViewController], titles: [String?], normalImages: [UIImage?], selectImages: [UIImage?]) {
-        guard naviVcs.count == titles.count || naviVcs.count == normalImages.count && naviVcs.count == selectImages.count else {
+        let hasValidTitles = titles.isEmpty || titles.count == naviVcs.count
+        let hasNoImages = normalImages.isEmpty && selectImages.isEmpty
+        let hasCompleteImages = normalImages.count == naviVcs.count && selectImages.count == naviVcs.count
+        guard hasValidTitles, hasNoImages || hasCompleteImages else {
             print("初始数组元素个数有误!")
             return
         }
         for idx in 0..<naviVcs.count {
             let navi = naviVcs[idx]
+            let title = titles.isEmpty ? nil : titles[idx]
             if normalImages.isEmpty && selectImages.isEmpty {
-                navi.tabBarItem = UITabBarItem(title: titles[idx], image: nil, selectedImage: nil)
+                navi.tabBarItem = UITabBarItem(title: title, image: nil, selectedImage: nil)
             } else {
                 let normal_image = normalImages[idx]?.withRenderingMode(.alwaysOriginal)
                 let select_image = selectImages[idx]?.withRenderingMode(.alwaysOriginal)
-                if titles.isEmpty {
-                    navi.tabBarItem = UITabBarItem(title: nil, image: normal_image, selectedImage: select_image)
-                } else {
-                    navi.tabBarItem = UITabBarItem(title: titles[idx], image: normal_image, selectedImage: select_image)
-                }
+                navi.tabBarItem = UITabBarItem(title: title, image: normal_image, selectedImage: select_image)
             }
         }
         self.viewControllers = naviVcs

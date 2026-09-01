@@ -42,24 +42,48 @@ extension Extension_TableView {
     /// 便捷注册cell
     /// - Parameter type: cell类
     public func registerCell<T: UITableViewCell>(_ type: T.Type) {
-        self.register(type.classForCoder(), forCellReuseIdentifier: NSStringFromClass(type.classForCoder()))
+        self.register(T.self, forCellReuseIdentifier: NSStringFromClass(T.self))
     }
     
-    /// 获取复用cell
-    /// - Parameter type: cell类
+    /// 获取复用cell(legacy)
+    /// - Parameters:
+    ///   - type: cell类
     /// - Returns: 复用cell
-    public func getReusableCell<T: UITableViewCell>( _ type: T.Type) -> T {
-        return self.dequeueReusableCell(withIdentifier: NSStringFromClass(type.classForCoder())) as! T
+    @available(*, deprecated, message: "Use getReusableCell(_:_) with indexPath in cellForRowAt; Apple 在 cellForRowAt 里推荐 for: indexPath 版本：和复用池、预取、高度计算等机制一致；无 indexPath 的版本更适合 legacy 场景，不是 dataSource 首选")
+    public func getReusableCell<T: UITableViewCell>(_ type: T.Type) -> T {
+        let identifier = NSStringFromClass(T.self)
+        guard let cell = self.dequeueReusableCell(withIdentifier: identifier) as? T else {
+            preconditionFailure("Expected \(T.self) for table cell identifier \(identifier). Check the registered cell type.")
+        }
+        return cell
+    }
+
+    /// 获取复用cell
+    /// - Parameters:
+    ///   - indexPath: cell位置
+    ///   - type: cell类
+    /// - Returns: 复用cell
+    public func getReusableCell<T: UITableViewCell>(_ indexPath: IndexPath, _ type: T.Type) -> T {
+        let identifier = NSStringFromClass(T.self)
+        // FIXME: Apple 在 cellForRowAt 里推荐 for: indexPath 版本：和复用池、预取、高度计算等机制一致；无 indexPath 的版本更适合 legacy 场景，不是 dataSource 首选。
+        guard let cell = self.dequeueReusableCell(withIdentifier: identifier, for: indexPath) as? T else {
+            preconditionFailure("Expected \(T.self) for table cell identifier \(identifier). Check the registered cell type.")
+        }
+        return cell
     }
 
     /// 便捷注册段头/尾视图
     public func registerView<T: UITableViewHeaderFooterView>(_ type: T.Type) {
-        self.register(type.classForCoder(), forHeaderFooterViewReuseIdentifier: NSStringFromClass(type.classForCoder()))
+        self.register(T.self, forHeaderFooterViewReuseIdentifier: NSStringFromClass(T.self))
     }
 
     /// 获取复用段头/尾视图
     public func getReusableView<T: UITableViewHeaderFooterView>( _ type: T.Type) -> T {
-        return self.dequeueReusableHeaderFooterView(withIdentifier: NSStringFromClass(type.classForCoder())) as! T
+        let identifier = NSStringFromClass(T.self)
+        guard let view = self.dequeueReusableHeaderFooterView(withIdentifier: identifier) as? T else {
+            preconditionFailure("Expected \(T.self) for table header/footer identifier \(identifier). Check the registered view type.")
+        }
+        return view
     }
 }
 
@@ -94,23 +118,31 @@ extension UICollectionView {
     /// 便捷注册cell
     /// - Parameter type: cell类
     public func registerCell<T: UICollectionViewCell>(_ type: T.Type) {
-        self.register(type.classForCoder(), forCellWithReuseIdentifier: NSStringFromClass(type.classForCoder()))
+        self.register(T.self, forCellWithReuseIdentifier: NSStringFromClass(T.self))
     }
     
     /// 获取复用cell
     /// - Parameter type: cell类
     /// - Returns: 复用cell
     public func getReusableCell<T: UICollectionViewCell>(_ indexPath: IndexPath, _ type: T.Type) -> T {
-        return self.dequeueReusableCell(withReuseIdentifier: NSStringFromClass(type.classForCoder()), for: indexPath) as! T
+        let identifier = NSStringFromClass(T.self)
+        guard let cell = self.dequeueReusableCell(withReuseIdentifier: identifier, for: indexPath) as? T else {
+            preconditionFailure("Expected \(T.self) for collection cell identifier \(identifier). Check the registered cell type.")
+        }
+        return cell
     }
 
     /// 便捷注册段头/尾视图
     public func registerView<T: UICollectionReusableView>(_ kind: UICollectionView.ReusableKind, _ type: T.Type) {
-        self.register(type.classForCoder(), forSupplementaryViewOfKind: kind.rawValue, withReuseIdentifier: NSStringFromClass(type.classForCoder()))
+        self.register(T.self, forSupplementaryViewOfKind: kind.rawValue, withReuseIdentifier: NSStringFromClass(T.self))
     }
 
     /// 获取复用段头/尾视图
     public func getReusableView<T: UICollectionReusableView>(_ kind: UICollectionView.ReusableKind, _ indexPath: IndexPath, _ type: T.Type) -> T {
-        return self.dequeueReusableSupplementaryView(ofKind: kind.rawValue, withReuseIdentifier: NSStringFromClass(type.classForCoder()), for: indexPath) as! T
+        let identifier = NSStringFromClass(T.self)
+        guard let view = self.dequeueReusableSupplementaryView(ofKind: kind.rawValue, withReuseIdentifier: identifier, for: indexPath) as? T else {
+            preconditionFailure("Expected \(T.self) for collection supplementary identifier \(identifier) of kind \(kind.rawValue). Check the registered view type.")
+        }
+        return view
     }
 }

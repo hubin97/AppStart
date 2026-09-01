@@ -22,6 +22,7 @@ public enum AlertPriority: Int, Comparable {
 }
 
 // MARK: - Main Class
+@MainActor
 public protocol AlertQueueable {
     var priority: AlertPriority { get }
 }
@@ -29,11 +30,13 @@ public protocol AlertQueueable {
 // MARK: - Utilities & Helpers
 // !!!!: 注意. 这个`AlertContainable`的扩展[只作用于同时遵循 AlertQueueable 和 UIView 的类型]。
 extension AlertContainable where Self: AlertQueueable & UIView {
+    @MainActor
     public func show(in parentView: UIView? = nil) {
         AlertQueueCoordinator.shared.enqueue(self)
     }
     
     // 其实仅提供给 AlertQueueCoordinator 调用
+    @MainActor
     func _presentInWindow() {
         guard let window = kAppKeyWindow else { return }
         self.display(in: window)

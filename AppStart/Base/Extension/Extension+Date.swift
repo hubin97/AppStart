@@ -34,37 +34,58 @@ extension Extension_Date {
     
     /// 当前是星期几, 从周日开始
     public var week: Int {
-        return Calendar.autoupdatingCurrent.dateComponents([.year, .month, .day, .weekday], from: self).weekday! - 1
+        guard let weekday = Calendar.autoupdatingCurrent.dateComponents([.year, .month, .day, .weekday], from: self).weekday else {
+            preconditionFailure("The current calendar could not determine a weekday for \(self).")
+        }
+        return weekday - 1
     }
     
     /// 上个月
     public var lastMonth: Date {
-        return Calendar.autoupdatingCurrent.date(byAdding: .month, value: -1, to: self)!
+        guard let date = Calendar.autoupdatingCurrent.date(byAdding: .month, value: -1, to: self) else {
+            preconditionFailure("The current calendar could not calculate the previous month for \(self).")
+        }
+        return date
     }
     
     /// 下个月
     public var nextMonth: Date {
-        return Calendar.autoupdatingCurrent.date(byAdding: .month, value: 1, to: self)!
+        guard let date = Calendar.autoupdatingCurrent.date(byAdding: .month, value: 1, to: self) else {
+            preconditionFailure("The current calendar could not calculate the next month for \(self).")
+        }
+        return date
     }
     
     /// 上一周
     public var lastWeek: Date {
-        return Calendar.autoupdatingCurrent.date(byAdding: .day, value: -7, to: self)!
+        guard let date = Calendar.autoupdatingCurrent.date(byAdding: .day, value: -7, to: self) else {
+            preconditionFailure("The current calendar could not calculate the previous week for \(self).")
+        }
+        return date
     }
     
     /// 下一周
     public var nextWeek: Date {
-        return Calendar.autoupdatingCurrent.date(byAdding: .day, value: 7, to: self)!
+        guard let date = Calendar.autoupdatingCurrent.date(byAdding: .day, value: 7, to: self) else {
+            preconditionFailure("The current calendar could not calculate the next week for \(self).")
+        }
+        return date
     }
     
     /// 后一天
     public var nextDay: Date {
-        return Calendar.autoupdatingCurrent.date(byAdding: .day, value: 1, to: self)!
+        guard let date = Calendar.autoupdatingCurrent.date(byAdding: .day, value: 1, to: self) else {
+            preconditionFailure("The current calendar could not calculate the next day for \(self).")
+        }
+        return date
     }
     
     /// 前一天
     public var lastDay: Date {
-        return Calendar.autoupdatingCurrent.date(byAdding: .day, value: -1, to: self)!
+        guard let date = Calendar.autoupdatingCurrent.date(byAdding: .day, value: -1, to: self) else {
+            preconditionFailure("The current calendar could not calculate the previous day for \(self).")
+        }
+        return date
     }
 }
 

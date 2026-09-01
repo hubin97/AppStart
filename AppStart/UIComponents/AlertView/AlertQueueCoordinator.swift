@@ -10,6 +10,7 @@ import Foundation
 // MARK: - Global Variables & Functions (if necessary)
 
 // MARK: - Main Class
+@MainActor
 final class AlertQueueCoordinator {
 
     static let shared = AlertQueueCoordinator()

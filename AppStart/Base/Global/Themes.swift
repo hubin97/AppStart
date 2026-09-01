@@ -5,7 +5,7 @@
 //  Created by hubin.h on 2023/12/6.
 //  Copyright © 2025 hubin.h. All rights reserved.
 
-import Foundation
+import UIKit
 
 /// `Themes.font`
 public typealias Fonts = Themes.font
@@ -61,8 +61,10 @@ extension UIFont.TextStyle {
 }
 
 // MARK: -
+@MainActor
 public enum Themes {
 
+    @MainActor
     public enum font {
 
         /// 动态字体 case 1

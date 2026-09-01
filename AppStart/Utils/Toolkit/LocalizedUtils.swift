@@ -43,6 +43,7 @@ extension StaticString {
     }
 }
 
+// TODO: 当前类不具备拓展性和通用性, 后续需要改造
 // MARK: - main class
 open class LocalizedUtils {
     
@@ -85,13 +86,8 @@ open class LocalizedUtils {
     }
     
     /// 获取主窗口
-    private static let keyWindow: UIWindow? = {
-        if #available(iOS 13, *) {
-            UIApplication.shared.windows.filter {$0.isKeyWindow}.first
-        } else {
-            UIApplication.shared.keyWindow
-        }
-    }()
+    @MainActor
+    private static var keyWindow: UIWindow? { kAppKeyWindow }
     
     /// 更新本地国际化
     /// - Parameters:
@@ -173,6 +169,6 @@ open class LocalizedUtils {
             "es": "es-ES",
             "ar": "ar"
         ]
-        return (lngMap.value(forKey: code) as? String) ?? "en-US"
+        return lngMap[code] ?? "en-US"
     }
 }

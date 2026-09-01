@@ -10,22 +10,22 @@ import AVKit
 
 /// 用于视图控制器导航
 /// 推荐使用`枚举`来实现
+@MainActor
 public protocol SceneProvider {
     /// 获取视图控制器
     var getSegue: UIViewController? { get }
 }
 
 // MARK: - 路由协议
+@MainActor
 public protocol Navigatable {
-    var navigator: Navigator! { get set }
+    var navigator: Navigator { get set }
 }
 
 // MARK: - Navigator
+@MainActor
 public class Navigator {
-    public static var `default` = Navigator()
-}
-
-extension Navigator {
+    public static let `default` = Navigator()
     
     public enum Transition {
         case root(in: UIWindow)
@@ -45,7 +45,7 @@ extension Navigator {
     }
     
     public func dismiss(sender: UIViewController?) {
-        sender?.navigationController?.dismiss(animated: true, completion: nil)
+        sender?.dismiss(animated: true, completion: nil)
     }
     
     @discardableResult
@@ -67,35 +67,23 @@ extension Navigator {
         guard let sender = sender else {
             fatalError("You need to pass in a sender for .navigation or .modal transitions")
         }
-        
-        if let nav = sender as? NavigationController {
-            nav.pushViewController(target, animated: animated)
-            return
-        }
-        
+
         switch transition {
         case .navigation:
-            DispatchQueue.main.async {
-                if let nav = sender.navigationController as? NavigationController {
-                    nav.pushViewController(target, animated: animated)
-                }
+            guard let navigationController = sender as? UINavigationController ?? sender.navigationController else {
+                preconditionFailure("A navigation transition requires the sender to belong to a UINavigationController")
             }
+            navigationController.pushViewController(target, animated: animated)
         case .modal(let type):
-            DispatchQueue.main.async {
-                let nav = NavigationController(rootViewController: target)
-                nav.modalPresentationStyle = type
-                sender.present(nav, animated: animated, completion: nil)
-            }
+            let nav = NavigationController(rootViewController: target)
+            nav.modalPresentationStyle = type
+            sender.present(nav, animated: animated, completion: nil)
         case .detail:
-            DispatchQueue.main.async {
-                let nav = NavigationController(rootViewController: target)
-                sender.showDetailViewController(nav, sender: nil)
-            }
+            let nav = NavigationController(rootViewController: target)
+            sender.showDetailViewController(nav, sender: nil)
         case .alert(let type):
-            DispatchQueue.main.async {
-                sender.modalPresentationStyle = type
-                sender.present(target, animated: animated, completion: nil)
-            }
+            target.modalPresentationStyle = type
+            sender.present(target, animated: animated, completion: nil)
         default: break
         }
     }

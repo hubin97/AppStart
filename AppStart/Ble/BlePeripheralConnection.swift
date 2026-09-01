@@ -47,7 +47,10 @@ public final class BlePeripheralConnection: NSObject {
 
     private(set) public var currentState: BlePeripheralState = .connecting {
         didSet {
-            Task { await stateBus.yield(currentState) }
+            // Task 异步调度；先拷贝本次 didSet 触发的 state，避免 yield 时读到后续变更，
+            // 也避免在 @Sendable 闭包内直接读取 self 的可变属性。
+            let state = currentState
+            Task { await stateBus.yield(state) }
         }
     }
 

@@ -16,7 +16,8 @@ public struct BleGattProfile {
     public var writeCharUUID: CBUUID?
     public var notifyCharUUID: CBUUID?
 
-    public static let empty = BleGattProfile()
+    /// 每次访问返回新副本，避免 `static let` 共享同一可变 struct 被 merge/赋值误改后污染全局空 profile。
+    public static var empty: BleGattProfile { BleGattProfile() }
 
     public init(
         serviceUUIDs: [CBUUID]? = nil,

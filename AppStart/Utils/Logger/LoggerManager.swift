@@ -138,6 +138,7 @@ open class LoggerManager {
     /// 缓存设置图标
     private var cacheIcon: UIImage?
     /// 初始化日志入口
+    @MainActor
     public func entrance(_ icon: UIImage? = nil) {
         self.removeEntrance()
         
@@ -150,6 +151,7 @@ open class LoggerManager {
     }
     
     /// 移除日志入口
+    @MainActor
     public func removeEntrance() {
         kAppKeyWindow?.subviews.compactMap({ $0 as? LoggerAssistant }).forEach({ $0.removeFromSuperview() })
     }

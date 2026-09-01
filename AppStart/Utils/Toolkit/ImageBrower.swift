@@ -62,7 +62,7 @@ open class ImageBrower: UIView {
     }()
 
     lazy var indexLabel: UILabel = {
-        let _indexLabel = UILabel(frame: CGRect(x: (kScreenW - 60)/2, y: kStatusBarHeight + 20, width: 60, height: 30))
+        let _indexLabel = UILabel(frame: CGRect(x: (kScreenW - 60)/2, y: kTopSafeHeight + 20, width: 60, height: 30))
         _indexLabel.font = UIFont.systemFont(ofSize: 14, weight: .medium)
         _indexLabel.textAlignment = .center
         _indexLabel.textColor = .white

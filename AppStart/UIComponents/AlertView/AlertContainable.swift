@@ -19,12 +19,14 @@ public enum AlertState {
 
 private struct AlertContainableKeys {
     // ✅ chatgpt建议使用静态变量更安全 // UnsafeRawPointer(bitPattern: "onStateChange".hashValue)
-    static var onStateChange = 0
-    static var isMaskEnabled = 0
-    static var usingSpringWithDamping = 0
-    static var maskView = 0
+    // 仅作 associated object 地址，不读写键值本身。
+    nonisolated(unsafe) static var onStateChange = 0
+    nonisolated(unsafe) static var isMaskEnabled = 0
+    nonisolated(unsafe) static var usingSpringWithDamping = 0
+    nonisolated(unsafe) static var maskView = 0
 }
 
+@MainActor
 public protocol AlertContainable: AnyObject {
     
     /// 弹窗内容视图，承载自定义内容

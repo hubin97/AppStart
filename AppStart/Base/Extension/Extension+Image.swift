@@ -75,10 +75,14 @@ extension Extension_Image {
     public func horizontalFlip() -> UIImage {
         //翻转图片的方向
         let flipImageOrientation = (self.imageOrientation.rawValue + 4) % 8
+        guard let cgImage = self.cgImage,
+              let orientation = UIImage.Orientation(rawValue: flipImageOrientation) else {
+            preconditionFailure("Horizontal flipping requires a CG-backed image with a valid orientation.")
+        }
         //翻转图片
-        let flipImage =  UIImage(cgImage: self.cgImage!,
+        let flipImage =  UIImage(cgImage: cgImage,
             scale:self.scale,
-            orientation:UIImage.Orientation(rawValue: flipImageOrientation)!
+            orientation:orientation
         )
         return flipImage
     }
@@ -89,28 +93,37 @@ extension Extension_Image {
         //翻转图片的方向
         var flipImageOrientation = (self.imageOrientation.rawValue + 4) % 8
         flipImageOrientation += flipImageOrientation%2==0 ? 1 : -1
+        guard let cgImage = self.cgImage,
+              let orientation = UIImage.Orientation(rawValue: flipImageOrientation) else {
+            preconditionFailure("Vertical flipping requires a CG-backed image with a valid orientation.")
+        }
         //翻转图片
-        let flipImage =  UIImage(cgImage:self.cgImage!,
+        let flipImage =  UIImage(cgImage:cgImage,
                                  scale:self.scale,
-                                 orientation:UIImage.Orientation(rawValue: flipImageOrientation)!
+                                 orientation:orientation
         )
         return flipImage
     }
 
     /// 获取位置处颜色
     public func pixelColor(pos: CGPoint) -> UIColor? {
-        let pixelData = self.cgImage?.dataProvider?.data
-        guard pixelData != nil else { return nil }
-        let data:UnsafePointer<UInt8> =  CFDataGetBytePtr(pixelData)
-        let pixelInfo: Int = ((Int(self.size.width) * Int(pos.y)) + Int(pos.x)) * 4
-
-        let r = CGFloat(data[pixelInfo]) / CGFloat(255.0)
-        let g = CGFloat(data[pixelInfo+1]) / CGFloat(255.0)
-        let b = CGFloat(data[pixelInfo+2]) / CGFloat(255.0)
-        let a = CGFloat(data[pixelInfo+3]) / CGFloat(255.0)
-        print(r, g, b, a)
-        let corlor = UIColor.init(red: r, green: g, blue: b, alpha: a)
-        return corlor
+        guard let cgImage = self.cgImage,
+              let pixelData = cgImage.dataProvider?.data else { return nil }
+        let width = cgImage.width
+        let height = cgImage.height
+        let x = Int(pos.x * self.scale)
+        let y = Int(pos.y * self.scale)
+        guard x >= 0, y >= 0, x < width, y < height else { return nil }
+        let bytesPerPixel = max(cgImage.bitsPerPixel / 8, 1)
+        let bytesPerRow = cgImage.bytesPerRow
+        let pixelInfo = y * bytesPerRow + x * bytesPerPixel
+        guard pixelInfo + 3 < CFDataGetLength(pixelData),
+              let data = CFDataGetBytePtr(pixelData) else { return nil }
+        let r = CGFloat(data[pixelInfo]) / 255.0
+        let g = CGFloat(data[pixelInfo + 1]) / 255.0
+        let b = CGFloat(data[pixelInfo + 2]) / 255.0
+        let a = CGFloat(data[pixelInfo + 3]) / 255.0
+        return UIColor(red: r, green: g, blue: b, alpha: a)
     }
     
     /// 灰度滤镜

@@ -178,7 +178,7 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   Alamofire: 7193b3b92c74a07f85569e1a6c4f4237291e7496
-  AppStart: e7d402651a6ad14cdc4fcf2442185f7f072d19f9
+  AppStart: e12b07d7b9f1dac3bee58fbf7c27205c35506511
   CocoaLumberjack: 5644158777912b7de7469fa881f8a3f259c2512a
   CwlCatchException: 7acc161b299a6de7f0a46a6ed741eae2c8b4d75a
   CwlCatchExceptionSupport: 54ccab8d8c78907b57f99717fb19d4cc3bce02dc

@@ -6,6 +6,8 @@
 //  Copyright © 2025 hubin.h. All rights reserved.
 
 import Foundation
+import UIKit
+import SnapKit
 import CocoaLumberjack
 
 // MARK: - main class
@@ -16,7 +18,7 @@ class LoggerListController: ViewController {
     }()
     
     open lazy var listView: UITableView = {
-        let listView = UITableView.init(frame: CGRect(x: 0, y: kNavBarAndSafeHeight, width: kScreenW, height: kScreenH - kNavBarAndSafeHeight - kBottomSafeHeight), style: .plain)
+        let listView = UITableView(frame: .zero, style: .plain)
         listView.register(UITableViewCell.self, forCellReuseIdentifier: NSStringFromClass(UITableViewCell.self))
         listView.tableFooterView = UIView.init(frame: CGRect.zero)
         listView.dataSource = self
@@ -25,16 +27,26 @@ class LoggerListController: ViewController {
         return listView
     }()
     
+    open override func setupLayout() {
+        view.addSubview(listView)
+        listView.snp.makeConstraints { make in
+            make.top.equalTo(naviBar.snp.bottom)
+            make.leading.trailing.equalToSuperview()
+            make.bottom.equalTo(view.safeAreaLayoutGuide)
+        }
+    }
+    
     open override func viewDidLoad() {
         super.viewDidLoad()
         self.naviBar.title = L10n.stringLogList
-        self.view.addSubview(listView)
         LoggerManager.shared.removeEntrance()
         // DDLogInfo("LoggerManager LogFiles Count:\(logFiles.count)")
     }
     
     deinit {
-        LoggerManager.shared.entrance()
+        Task { @MainActor in
+            LoggerManager.shared.entrance()
+        }
     }
 }
 
@@ -79,7 +91,7 @@ class LoggerDetailController: ViewController {
 
     var file: DDLogFileInfo?
     open lazy var logTextView: UITextView = {
-        let _logTextView = UITextView.init(frame: CGRect(x: 0, y: kNavBarAndSafeHeight, width: kScreenW, height: kScreenH - kNavBarAndSafeHeight - kBottomSafeHeight))
+        let _logTextView = UITextView(frame: .zero)
         _logTextView.isEditable = false
         return _logTextView
     }()
@@ -109,11 +121,19 @@ class LoggerDetailController: ViewController {
         return _titleView
     }()
 
+    open override func setupLayout() {
+        view.addSubview(logTextView)
+        logTextView.snp.makeConstraints { make in
+            make.top.equalTo(naviBar.snp.bottom)
+            make.leading.trailing.equalToSuperview()
+            make.bottom.equalTo(view.safeAreaLayoutGuide)
+        }
+    }
+    
     open override func viewDidLoad() {
         super.viewDidLoad()
         self.naviBar.title = L10n.stringLogDetails
         self.naviBar.setRightView(titleView)
-        self.view.addSubview(logTextView)
         if let fpath = file?.filePath, let fdata = try? Data.init(contentsOf: URL.init(fileURLWithPath: fpath)) {
             logTextView.text = String(data: fdata, encoding: .utf8)
         }

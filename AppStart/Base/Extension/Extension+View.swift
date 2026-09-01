@@ -438,11 +438,9 @@ extension Extension_View {
         let filter = CIFilter(name: "CIGaussianBlur", parameters: [kCIInputImageKey: input_ciImage])
         filter?.setValue(inputRadius, forKey: "inputRadius")
         
-        let outputImage = filter?.outputImage
+        guard let outputImage = filter?.outputImage else { return nil }
         let context = CIContext.init(options: nil)
-        // 尺寸大小问题处理
-        let cgimg = context.createCGImage(outputImage!, from: input_ciImage.extent)
-        let output_Image = UIImage.init(cgImage: cgimg!, scale: img.scale, orientation: img.imageOrientation)
-        return output_Image
+        guard let cgimg = context.createCGImage(outputImage, from: input_ciImage.extent) else { return nil }
+        return UIImage.init(cgImage: cgimg, scale: img.scale, orientation: img.imageOrientation)
     }
 }

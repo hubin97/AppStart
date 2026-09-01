@@ -16,7 +16,7 @@
 #
 # 可行命令（spec lint 与 trunk push 用同一套参数）：
 #
-#   pod spec lint AppStart.podspec --allow-warnings --use-modular-headers --use-libraries
+#   pod lib lint AppStart.podspec --allow-warnings --use-modular-headers --use-libraries
 #
 #   pod trunk push AppStart.podspec \
 #     --verbose --allow-warnings \
@@ -64,7 +64,15 @@ Pod::Spec.new do |s|
   s.swift_versions = ['5.0']
   # 仅约束 AppStart 自身 Pod target；勿用 user_target_xcconfig 写入宿主 App，
   # 否则会与宿主工程里更高的 IPHONEOS_DEPLOYMENT_TARGET 冲突并触发 pod install 警告。
-  s.pod_target_xcconfig = { 'IPHONEOS_DEPLOYMENT_TARGET' => '14.0' }
+  # 整库 Swift 6 会把 BLE/Network 一并卷入严格并发；Base 先以注解适配，
+  # 由 Swift 5 + targeted 检查，宿主工程使用 Swift 6。
+  # 校验请用 `pod lib lint`（本地源码）。`pod spec lint` 会按 s.source 拉 tag，
+  # 对未发布改动会得到过期诊断。
+  s.pod_target_xcconfig = {
+    'IPHONEOS_DEPLOYMENT_TARGET' => '14.0',
+    'SWIFT_VERSION' => '5.0',
+    'SWIFT_STRICT_CONCURRENCY' => 'targeted'
+  }
 
   # 模块 README（Connectivity / HTTP / BLE 等）仅保留在 Pod 目录，不参与编译
   s.preserve_paths = 'AppStart/**/*.md', 'README.md'

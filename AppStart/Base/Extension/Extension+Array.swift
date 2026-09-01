@@ -32,7 +32,7 @@ extension Extension_Array {
 
     /// 随机一个元素, 同 randomElement()方法
     public var random: Element? {
-        return self.count != 0 ? self[Int(arc4random_uniform(UInt32(self.count)))]: nil
+        randomElement()
     }
 }
 

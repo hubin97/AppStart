@@ -86,7 +86,7 @@ extension Extension_Data {
         case 0x42:
             return .bmp
         case 0x52:
-            let subData = self.subdata(in: Range(NSMakeRange(0, 12))!)
+            let subData = self.subdata(in: 0..<12)
             if let infoString = String(data: subData, encoding: .ascii) {
                 if infoString.hasPrefix("RIFF") && infoString.hasSuffix("WEBP") {
                     return .webp

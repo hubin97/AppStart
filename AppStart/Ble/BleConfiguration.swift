@@ -30,7 +30,8 @@ public struct BleReconnectPolicy {
         self.attemptTimeout = attemptTimeout
     }
 
-    public static let disabled = BleReconnectPolicy(enabled: false)
+    /// 每次访问返回新副本，避免 `static let` 共享同一可变 struct 被误改后污染全局默认值。
+    public static var disabled: BleReconnectPolicy { BleReconnectPolicy(enabled: false) }
 }
 
 /// ACK 匹配器：判断 Notify 回包是否为当前写指令的应答。

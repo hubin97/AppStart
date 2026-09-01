@@ -10,14 +10,16 @@ import UIKit
 // MARK: - global var and methods
 private typealias Extension_ViewController = UIViewController
 
+@MainActor
+private enum VcKeys {
+    static var keyboardShow: UInt8 = 0
+    static var keyboardHide: UInt8 = 0
+}
+
 // MARK: - main class
+@MainActor
 extension Extension_ViewController {
-    
-    struct VcKeys {
-        static var keyboardShow = UnsafeRawPointer(bitPattern: "keyboardShow".hashValue)
-        static var keyboardHide = UnsafeRawPointer(bitPattern: "keyboardHide".hashValue)
-    }
-    
+
     var keyboardShowBlock: ((Notification) -> Void)? {
         get {
             return objc_getAssociatedObject(self, &VcKeys.keyboardShow) as? ((Notification) -> Void)
@@ -38,6 +40,7 @@ extension Extension_ViewController {
 }
 
 // MARK: - call backs
+@MainActor
 extension Extension_ViewController {
     
     public func addKeyboardListener(willShow: ((Notification) -> Void)? = nil, willHide: ((Notification) -> Void)? = nil) {

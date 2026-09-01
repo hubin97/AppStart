@@ -12,6 +12,7 @@ import Foundation
 // MARK: - global var and methods
 
 // MARK: - main class
+@MainActor
 open class TapImpact {
 
     public static func light() {
@@ -44,6 +45,7 @@ open class TapImpact {
 }
 
 // MARK: - other classes
+@MainActor
 class TapticEngine {
     public static let impact: Impact = .init()
     public static let selection: Selection = .init()
@@ -51,6 +53,7 @@ class TapticEngine {
     
     
     /// Wrapper of `UIImpactFeedbackGenerator`
+    @MainActor
     class Impact {
 
         public enum ImpactStyle {
@@ -108,6 +111,7 @@ class TapticEngine {
     
     
     /// Wrapper of `UISelectionFeedbackGenerator`
+    @MainActor
     class Selection {
         private var generator: Any? = {
             guard #available(iOS 10.0, *) else { return nil }
@@ -135,6 +139,7 @@ class TapticEngine {
     
     
     /// Wrapper of `UINotificationFeedbackGenerator`
+    @MainActor
     class Notification {
         public enum NotificationType {
             case success, warning, error

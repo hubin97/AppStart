@@ -17,6 +17,7 @@
 		607FACE01AFB9204008FA782 /* LaunchScreen.xib in Resources */ = {isa = PBXBuildFile; fileRef = 607FACDE1AFB9204008FA782 /* LaunchScreen.xib */; };
 		607FACEC1AFB9204008FA782 /* Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607FACEB1AFB9204008FA782 /* Tests.swift */; };
 		A1E2B3C41F6D7890ABCD1234 /* BleModuleSpec.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E2B3C31F6D7890ABCD1234 /* BleModuleSpec.swift */; };
+		A1E2B3C61F6D7890ABCD1236 /* BaseModuleSpec.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E2B3C51F6D7890ABCD1235 /* BaseModuleSpec.swift */; };
 		6FD38055639DFBA123CA2CB7 /* Pods_AppStart_Example.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B1FD125B62746A23E39BCD60 /* Pods_AppStart_Example.framework */; };
 /* End PBXBuildFile section */
 
@@ -46,6 +47,7 @@
 		607FACEA1AFB9204008FA782 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		607FACEB1AFB9204008FA782 /* Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests.swift; sourceTree = "<group>"; };
 		A1E2B3C31F6D7890ABCD1234 /* BleModuleSpec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BleModuleSpec.swift; sourceTree = "<group>"; };
+		A1E2B3C51F6D7890ABCD1235 /* BaseModuleSpec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BaseModuleSpec.swift; sourceTree = "<group>"; };
 		82C314847087BC1D6407A3CF /* AppStart.podspec */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text; name = AppStart.podspec; path = ../AppStart.podspec; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.ruby; };
 		8553E54D04558D0D9BC110E1 /* LICENSE */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text; name = LICENSE; path = ../LICENSE; sourceTree = "<group>"; };
 		9E8200ACB657C413D7C93709 /* Pods-AppStart_Tests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-AppStart_Tests.release.xcconfig"; path = "Target Support Files/Pods-AppStart_Tests/Pods-AppStart_Tests.release.xcconfig"; sourceTree = "<group>"; };
@@ -150,6 +152,7 @@
 			children = (
 				607FACEB1AFB9204008FA782 /* Tests.swift */,
 				A1E2B3C31F6D7890ABCD1234 /* BleModuleSpec.swift */,
+				A1E2B3C51F6D7890ABCD1235 /* BaseModuleSpec.swift */,
 				18DC6A232EE9649000564962 /* Docs */,
 				18DC6A222EE9648700564962 /* Fixtures */,
 				607FACE91AFB9204008FA782 /* Supporting Files */,
@@ -430,6 +433,7 @@
 			files = (
 				607FACEC1AFB9204008FA782 /* Tests.swift in Sources */,
 				A1E2B3C41F6D7890ABCD1234 /* BleModuleSpec.swift in Sources */,
+				A1E2B3C61F6D7890ABCD1236 /* BaseModuleSpec.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -578,8 +582,9 @@
 				MODULE_NAME = ExampleApp;
 				PRODUCT_BUNDLE_IDENTIFIER = "org.cocoapods.demo.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_SWIFT3_OBJC_INFERENCE = Default;
-				SWIFT_VERSION = 4.0;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
 		};
@@ -599,8 +604,9 @@
 				MODULE_NAME = ExampleApp;
 				PRODUCT_BUNDLE_IDENTIFIER = "org.cocoapods.demo.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_SWIFT3_OBJC_INFERENCE = Default;
-				SWIFT_VERSION = 4.0;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
 		};
@@ -622,8 +628,9 @@
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = "org.cocoapods.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_SWIFT3_OBJC_INFERENCE = Default;
-				SWIFT_VERSION = 4.0;
+				SWIFT_VERSION = 6.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AppStart_Example.app/AppStart_Example";
 			};
 			name = Debug;
@@ -642,8 +649,9 @@
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = "org.cocoapods.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_SWIFT3_OBJC_INFERENCE = Default;
-				SWIFT_VERSION = 4.0;
+				SWIFT_VERSION = 6.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AppStart_Example.app/AppStart_Example";
 			};
 			name = Release;

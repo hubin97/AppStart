@@ -98,7 +98,7 @@ extension Extension_String {
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
         guard let date = dateFormatter.date(from: self) else {
             print(">> Date 转换失败, 取当前时间")
-            return dateFormatter.date(from: dateFormatter.string(from: Date()))!
+            return Date()
         }
         return date
     }
@@ -126,7 +126,7 @@ extension Extension_String {
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
         guard let date = dateFormatter.date(from: self) else {
             print(">> Date 转换失败, 取当前时间")
-            return dateFormatter.date(from: dateFormatter.string(from: Date()))!
+            return Date()
         }
         return date
     }
@@ -175,7 +175,7 @@ extension Extension_String {
     /// ???  .urlQueryAllowed
     public var urlEncoded: String {
         if isURLEncoded { return self }
-        return addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!
+        return addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? self
     }
 
     /// 使用正则表达式检测 URL 中是否存在百分比编码

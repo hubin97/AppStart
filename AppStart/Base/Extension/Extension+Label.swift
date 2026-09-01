@@ -131,8 +131,10 @@ extension Extension_Label {
     /// 设置加粗斜体
     /// - Parameter fontSize: 字号
     public func setBoldItalic(_ fontSize: CGFloat) {
-        let descriptor = UIFont.systemFont(ofSize: fontSize).fontDescriptor.withSymbolicTraits([.traitBold, .traitItalic])
-        self.font = UIFont(descriptor: descriptor!, size: fontSize)
+        guard let descriptor = UIFont.systemFont(ofSize: fontSize).fontDescriptor.withSymbolicTraits([.traitBold, .traitItalic]) else {
+            preconditionFailure("The system font does not support combined bold and italic traits.")
+        }
+        self.font = UIFont(descriptor: descriptor, size: fontSize)
     }
     
     /// 为 UILabel 文本设置渐变颜色

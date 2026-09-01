@@ -12,10 +12,10 @@ import Foundation
 public typealias QPath = QuickPaths
 
 /// 快捷路径方法
-public class QuickPaths {
+public enum QuickPaths {
 
     /// FileManager.default
-    public static let fileManager = FileManager.default
+    public static var fileManager: FileManager { .default }
 
     /// Home目录  ./
     public static let homePath = NSHomeDirectory()

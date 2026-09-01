@@ -5,10 +5,11 @@
 //  Created by hubin.h on 2024/3/11.
 //  Copyright © 2025 hubin.h. All rights reserved.
 
-import Foundation
+import UIKit
 import SnapKit
 
 // MARK: - global var and methods
+@MainActor
 protocol NaviBarDelegate: AnyObject {
     func backAction()
     func rightAction()
@@ -19,18 +20,35 @@ extension NaviBarDelegate {
     func backAction() {}
 }
 
+/// 玻璃模式下 `NaviBar` 仍是业务入口，画面在系统 `UINavigationBar` 上。
+/// 标题 / 左右按钮 / 颜色变化时通知适配器去改 `navigationItem`。
+@MainActor
+protocol NaviBarSyncing: AnyObject {
+    /// `setLeftView` / `setRightView` 会换掉子视图，适配器要重绑 `isHidden` 观察后再写系统栏。
+    func naviBarDidChange(_ naviBar: NaviBar)
+}
+
 // MARK: - main class
+@MainActor
 public class NaviBar: UIView {
+    
+    /// 是否改用系统 `UINavigationBar`。见 `isLiquidGlassEnabled`。
+    public static var usesSystemBar: Bool { isLiquidGlassEnabled }
+    
+    /// 仅玻璃模式由 `NaviBarAdapter` 赋值。
+    weak var systemBarUpdater: NaviBarSyncing?
     
     public var title: String? {
         didSet {
             titleView.title = title
+            notifySystemBarIfNeeded()
         }
     }
     
     public var textColor: UIColor = .black {
         didSet {
             titleView.titleLabel.textColor = textColor
+            notifySystemBarIfNeeded()
         }
     }
     
@@ -39,7 +57,7 @@ public class NaviBar: UIView {
         get { !blurView.isHidden }
         set {
             blurView.isHidden = !newValue
-            backgroundColor = newValue ? .clear: .white
+            backgroundColor = newValue ? .clear : .white
         }
     }
 
@@ -62,37 +80,59 @@ public class NaviBar: UIView {
     
     lazy var blurView: BlurOverlayView = {
         let view = BlurOverlayView()
-        view.frame = CGRect(x: 0, y: 0, width: kScreenW, height: kNavBarAndSafeHeight)
         view.isHidden = true // 默认不开启
         return view
     }()
 
+    private let contentView = UIView()
+    /// 避免 layoutSubviews 中重复 remake 标题约束
+    private var titleLeadingOffset: CGFloat?
+
     override init(frame: CGRect) {
-        super.init(frame: CGRect(x: 0, y: 0, width: kScreenW, height: kNavBarAndSafeHeight))
+        super.init(frame: frame)
         self.backgroundColor = .white
         self.addSubview(blurView)
-        self.addSubview(backButton)
-        self.addSubview(titleView)
+        self.addSubview(contentView)
+        self.contentView.addSubview(backButton)
+        self.contentView.addSubview(titleView)
         self.leftView = backButton
+        
         self.setupConstraints()
+        self.hideContentIfUsingSystemBar()
     }
     
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
     
+    public override var isHidden: Bool {
+        get { super.isHidden }
+        set {
+            super.isHidden = newValue
+            notifySystemBarIfNeeded()
+        }
+    }
+    
     private func setupConstraints() {
+        blurView.snp.makeConstraints { make in
+            make.edges.equalToSuperview()
+        }
+
+        // 外层已把 NaviBar 拉到 safeArea.top + 44；这里的 safeArea.top 常为 0，再钉一层会把内容区拉成整栏高。
+        contentView.snp.makeConstraints { make in
+            make.leading.trailing.bottom.equalToSuperview()
+            make.height.equalTo(kNavBarHeight)
+        }
+
         backButton.snp.makeConstraints { make in
-            make.leading.equalToSuperview()
-            make.top.equalToSuperview().offset(kStatusBarHeight)
+            make.leading.top.bottom.equalToSuperview()
             make.width.height.equalTo(kNavBarHeight)
         }
         
         titleView.snp.makeConstraints { make in
-            make.top.equalToSuperview().offset(kStatusBarHeight)
+            make.top.bottom.equalToSuperview()
             make.leading.equalTo(backButton.snp.trailing).offset(10)
             make.centerX.equalToSuperview()
-            make.height.equalTo(kNavBarHeight)
         }
     }
     
@@ -106,75 +146,128 @@ public class NaviBar: UIView {
     
     func setBackButton() {}
     
+    /// 玻璃模式只当布局锚点（高度 0）。`contentView` 仍是 44pt 且默认不裁剪，会溢到系统栏上叠出双标题 / 双返回。
+    private func hideContentIfUsingSystemBar() {
+        guard Self.usesSystemBar else { return }
+        backgroundColor = .clear
+        clipsToBounds = true
+        isUserInteractionEnabled = false
+        contentView.isHidden = true
+        blurView.isHidden = true
+    }
+    
+    /// overlay 自己会画，不必通知。
+    private func notifySystemBarIfNeeded() {
+        guard Self.usesSystemBar else { return }
+        systemBarUpdater?.naviBarDidChange(self)
+    }
+    
     //
     public func setLeftView(_ tmpView: UIView) {
         self.leftView?.removeFromSuperview()
-        self.addSubview(tmpView)
+        titleLeadingOffset = nil
+        self.leftView = tmpView
         
-        let sizeH = tmpView.height
+        if Self.usesSystemBar {
+            notifySystemBarIfNeeded()
+            return
+        }
+        
+        contentView.addSubview(tmpView)
+        
         let oX = tmpView.origin.x == 0 ? 10 : tmpView.origin.x
-        let oY = kStatusBarHeight + (kNavBarHeight - sizeH)/2
+        let size = sideViewPreferredSize(for: tmpView)
         
         tmpView.snp.makeConstraints { make in
             make.leading.equalToSuperview().offset(oX)
-            make.top.equalToSuperview().offset(oY)
-            make.size.equalTo(tmpView.frame.size)
+            make.centerY.equalToSuperview()
+            make.width.equalTo(size.width)
+            make.height.equalTo(size.height)
         }
         
         titleView.snp.remakeConstraints { make in
-            make.top.equalToSuperview().offset(kStatusBarHeight)
+            make.top.bottom.equalToSuperview()
             make.leading.equalTo(tmpView.snp.trailing).offset(10)
             make.centerX.equalToSuperview()
-            make.height.equalTo(kNavBarHeight)
         }
-        
-        self.leftView = tmpView
     }
     
     public func setRightView(_ tmpView: UIView?) {
         self.rightView?.removeFromSuperview()
+        titleLeadingOffset = nil
         guard let tmpView = tmpView else {
             self.rightView = nil
+            notifySystemBarIfNeeded()
             return
-        }
-        self.addSubview(tmpView)
-        
-        let sizeH = tmpView.height
-        let oX = tmpView.origin.x == 0 ? 10 : tmpView.origin.x
-        let oY = kStatusBarHeight + (kNavBarHeight - sizeH)/2
-
-        tmpView.snp.makeConstraints { make in
-            make.trailing.equalToSuperview().inset(oX)
-            make.top.equalToSuperview().offset(oY)
-            make.size.equalTo(tmpView.frame.size)
         }
         
         self.rightView = tmpView
+        
+        if Self.usesSystemBar {
+            notifySystemBarIfNeeded()
+            return
+        }
+        
+        contentView.addSubview(tmpView)
+        
+        let oX = tmpView.origin.x == 0 ? 10 : tmpView.origin.x
+        let size = sideViewPreferredSize(for: tmpView)
+
+        tmpView.snp.makeConstraints { make in
+            make.trailing.equalToSuperview().inset(oX)
+            make.centerY.equalToSuperview()
+            make.width.equalTo(size.width)
+            make.height.equalTo(size.height)
+        }
     }
     
     public override func layoutSubviews() {
         super.layoutSubviews()
         
+        guard !Self.usesSystemBar else { return }
+        
         // FIXME: 保证titleView对称居中, (仅当左右视图都存在时 才需要调整)
-        if let leftView = leftView, let rightView = rightView {
-            let marign_left = leftView.frame.minX + leftView.width
-            let marign_right = bounds.width - rightView.frame.minX
-            let margin_max = max(marign_left, marign_right)
-            let offsetX = margin_max - marign_left + 5
-            // print("marign_left: \(marign_left) marign_right: \(marign_right)")
-            
-            titleView.snp.remakeConstraints { make in
-                make.top.equalToSuperview().offset(kStatusBarHeight)
-                make.leading.equalTo(leftView.snp.trailing).offset(offsetX)
-                make.centerX.equalToSuperview()
-                make.height.equalTo(kNavBarHeight)
-            }
+        guard let leftView = leftView, let rightView = rightView else { return }
+        let marign_left = leftView.frame.minX + leftView.bounds.width
+        let marign_right = bounds.width - rightView.frame.minX
+        guard marign_left > 0, marign_right > 0 else { return }
+        
+        let margin_max = max(marign_left, marign_right)
+        let offsetX = margin_max - marign_left + 5
+        guard titleLeadingOffset != offsetX else { return }
+        titleLeadingOffset = offsetX
+        // print("marign_left: \(marign_left) marign_right: \(marign_right)")
+        
+        titleView.snp.remakeConstraints { make in
+            make.top.bottom.equalToSuperview()
+            make.leading.equalTo(leftView.snp.trailing).offset(offsetX)
+            make.centerX.equalToSuperview()
         }
     }
 }
 
 // MARK: - private mothods
 extension NaviBar {
+    
+    /// Auto Layout 完成前 frame 常为 .zero，直接用 frame.size 会把左右按钮约束成 0。
+    private func sideViewPreferredSize(for view: UIView) -> CGSize {
+        let frameSize = view.frame.size
+        if frameSize.width > 0, frameSize.height > 0 { return frameSize }
+        
+        let boundsSize = view.bounds.size
+        if boundsSize.width > 0, boundsSize.height > 0 { return boundsSize }
+        
+        if !view.subviews.isEmpty {
+            view.layoutIfNeeded()
+            let width = view.subviews.map(\.frame.maxX).max() ?? 0
+            let height = view.subviews.map(\.frame.height).max() ?? 0
+            if width > 0, height > 0 {
+                return CGSize(width: width, height: max(height, kNavBarHeight))
+            }
+        }
+        
+        return CGSize(width: kNavBarHeight, height: kNavBarHeight)
+    }
     
     /// 更新返回按钮图标
     /// - Parameter isDark: 是否为深色主题
@@ -254,6 +347,8 @@ extension NaviBar {
         // 更新自定义左右视图中的其它按钮图标
         updateButtonIconsInView(leftView, textColor: textColor)
         updateButtonIconsInView(rightView, textColor: textColor)
+        
+        notifySystemBarIfNeeded()
     }
 }
 
@@ -270,7 +365,6 @@ extension NaviBar {
         
         lazy var titleLabel: UILabel = {
             let _titleLabel = UILabel()
-            _titleLabel.frame = bounds
             _titleLabel.textColor = .black
             _titleLabel.textAlignment = .center
             _titleLabel.font = UIFont.systemFont(ofSize: 17, weight: .medium)
@@ -280,15 +374,13 @@ extension NaviBar {
         override init(frame: CGRect) {
             super.init(frame: frame)
             self.addSubview(titleLabel)
+            titleLabel.snp.makeConstraints { make in
+                make.edges.equalToSuperview()
+            }
         }
         
         required init?(coder: NSCoder) {
             fatalError("init(coder:) has not been implemented")
-        }
-        
-        override func layoutSubviews() {
-            super.layoutSubviews()
-            self.titleLabel.frame = bounds
         }
     }
 }

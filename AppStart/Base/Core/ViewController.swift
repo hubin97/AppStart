@@ -5,24 +5,27 @@
 //  Created by hubin.h on 2023/11/10.
 //  Copyright © 2025 hubin.h. All rights reserved.
 
-import Foundation
 import UIKit
+import SnapKit
 
 // MARK: - global var and methods
 
 // MARK: - main class
+@MainActor
 open class ViewController: UIViewController, Navigatable, NaviBarDelegate {
         
     public var viewModel: ViewModel?
-    public var navigator: Navigator!
+    // 不用 `= .default` 属性初值：`Navigator.default` 是 @MainActor，非隔离默认值在 Swift 6 宿主会报错。
+    public var navigator: Navigator
 
-    public init(viewModel: ViewModel?, navigator: Navigator = Navigator.default) {
+    public init(viewModel: ViewModel?, navigator: Navigator? = nil) {
         self.viewModel = viewModel
-        self.navigator = navigator
+        self.navigator = navigator ?? .default
         super.init(nibName: nil, bundle: nil)
     }
     
     public init() {
+        self.navigator = .default
         super.init(nibName: nil, bundle: nil)
     }
     
@@ -31,7 +34,11 @@ open class ViewController: UIViewController, Navigatable, NaviBarDelegate {
     }
 
     /// 默认开启左滑导航手势
-    public var enablePopGestureRecognizer = true
+    public var enablePopGestureRecognizer = true {
+        didSet {
+            (navigationController as? NavigationController)?.updatePopGestureAvailability()
+        }
+    }
     
     public lazy var naviBar: NaviBar = {
         let _naviBar = NaviBar()
@@ -39,45 +46,57 @@ open class ViewController: UIViewController, Navigatable, NaviBarDelegate {
         return _naviBar
     }()
     
+    /// `isLiquidGlassEnabled` 时把 `NaviBar` 同步到系统栏；否则为 nil。
+    private var naviBarAdapter: NaviBarAdapter?
+    
     open override func viewDidLoad() {
         super.viewDidLoad()
         self.view.backgroundColor = .white
         self.view.addSubview(naviBar)
         
-        if let interactivePopGestureRecognizer = navigationController?.interactivePopGestureRecognizer {
-            interactivePopGestureRecognizer.addTarget(self, action: #selector(handlePopGesture(_:)))
+        if NaviBar.usesSystemBar {
+            installSystemBarAdapter()
+        } else {
+            installLegacyNavigationOverlay()
         }
-        
-//        if LocalizedUtils.isRTL() {
-//            self.view.semanticContentAttribute = .forceRightToLeft
-//        } else {
-//            self.view.semanticContentAttribute = .forceLeftToRight
-//        }
 
         self.setupLayout()
         self.bindViewModel()
     }
     
-    open override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        self.navigationController?.setNavigationBarHidden(true, animated: true)
+    /// 系统栏负责视觉；`naviBar` 高度 0 且内容已隐藏，旧页面仍可约束 `naviBar.snp.bottom`。
+    private func installSystemBarAdapter() {
+        naviBar.snp.makeConstraints { make in
+            make.leading.trailing.equalToSuperview()
+            make.top.equalTo(view.safeAreaLayoutGuide.snp.top)
+            make.height.equalTo(0)
+        }
+        let adapter = NaviBarAdapter()
+        adapter.attach(to: self, naviBar: naviBar)
+        naviBarAdapter = adapter
     }
     
-    open override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
+    /// 隐藏系统栏，使用自定义 `NaviBar`（含 iOS 26 兼容模式）。
+    private func installLegacyNavigationOverlay() {
+        edgesForExtendedLayout = [.left, .right, .bottom]
+        extendedLayoutIncludesOpaqueBars = false
         
-        // 禁用返回手势,需要开启只需设置为yes即可。默认开启
-        if let navi = self.navigationController, navi.responds(to: #selector(getter: navi.interactivePopGestureRecognizer)) {
-            if self.navigationController?.viewControllers.count == 1 {
-                navi.interactivePopGestureRecognizer?.isEnabled = false
-                navi.interactivePopGestureRecognizer?.delegate = nil
-            } else {
-                navi.interactivePopGestureRecognizer?.delegate = navi as? UIGestureRecognizerDelegate
-                navi.interactivePopGestureRecognizer?.isEnabled = enablePopGestureRecognizer
-            }
+        naviBar.snp.makeConstraints { make in
+            make.top.leading.trailing.equalToSuperview()
+            make.bottom.equalTo(view.safeAreaLayoutGuide.snp.top).offset(kNavBarHeight)
         }
     }
-
+    
+    open override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        if NaviBar.usesSystemBar {
+            navigationController?.setNavigationBarHidden(naviBar.isHidden, animated: animated)
+            naviBarAdapter?.applyToSystemBar()
+        } else {
+            navigationController?.setNavigationBarHidden(true, animated: animated)
+        }
+    }
+    
     deinit {
         print("\(String(describing: type(of: self))) deinit")
     }
@@ -141,15 +160,5 @@ open class ViewController: UIViewController, Navigatable, NaviBarDelegate {
     }
     open override var preferredInterfaceOrientationForPresentation: UIInterfaceOrientation {
         return .portrait
-    }
-}
-
-// MARK: - private mothods
-extension ViewController { 
-    
-    @objc open func handlePopGesture(_ ges: UIGestureRecognizer) {
-        if ges.state == .began {
-            self.popGestureAction()
-        }
     }
 }

@@ -35,23 +35,28 @@ extension Extension_Color {
     ///   - hexStr: #0xFFFFFF
     ///   - alpha: 透明度, 默认1
     public convenience init(hexStr: String, alpha: CGFloat = 1) {
-        let hexString = hexStr.trimmingCharacters(in: .whitespacesAndNewlines)
-        let scanner = Scanner(string: hexString)
-        if hexString.hasPrefix("#") {
-            scanner.scanLocation = 1
-        } else if hexString.hasPrefix("0x") || hexString.hasPrefix("0X") {
-            scanner.scanLocation = 2
+        self.init(hexValue: Self.strictHexValue(from: hexStr) ?? 0, alpha: alpha)
+    }
+
+    /// 严格字符串初始化，仅接受带可选 `#` / `0x` / `0X` 前缀的 6 位 RGB 十六进制字符串。
+    /// - Parameters:
+    ///   - strictHexStr: #FFFFFF、0xFFFFFF/0XFFFFFF 或 FFFFFF
+    ///   - alpha: 透明度, 默认1
+    public convenience init?(strictHexStr: String, alpha: CGFloat = 1) {
+        guard let hexValue = Self.strictHexValue(from: strictHexStr) else { return nil }
+        self.init(hexValue: hexValue, alpha: alpha)
+    }
+
+    /// 严格字符串初始化，仅接受带可选 `#` / `0x` / `0X` 前缀的 6 位 RGB 十六进制字符串。
+    private static func strictHexValue(from hexStr: String) -> Int? {
+        var value = hexStr.trimmingCharacters(in: .whitespacesAndNewlines)
+        if value.hasPrefix("#") {
+            value.removeFirst()
+        } else if value.hasPrefix("0x") || value.hasPrefix("0X") {
+            value.removeFirst(2)
         }
-        var color: UInt32 = 0
-        scanner.scanHexInt32(&color)
-        let mask = 0x0000FF
-        let r = Int(color >> 16) & mask
-        let g = Int(color >> 8) & mask
-        let b = Int(color) & mask
-        let red   = CGFloat(r) / 255.0
-        let green = CGFloat(g) / 255.0
-        let blue  = CGFloat(b) / 255.0
-        self.init(red: red, green: green, blue: blue, alpha: alpha)
+        guard value.count == 6 else { return nil }
+        return Int(value, radix: 16)
     }
 }
 

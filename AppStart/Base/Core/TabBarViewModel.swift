@@ -8,6 +8,7 @@
 import Foundation
 import UIKit
 
+@MainActor
 public protocol TabBarItemDataProvider: CaseIterable {
     // 根据枚举值返回对应的图标
     var image_n: UIImage? { get }

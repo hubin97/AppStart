@@ -19,6 +19,7 @@ import UIKit
 ///   表示应用使用了多场景架构；（即 Info.plist 中配置了 UIApplicationSceneManifest）
 ///
 /// - 对于旧项目或 App Extension，会返回 false。
+@MainActor
 public var isSceneEnabled: Bool {
     if #available(iOS 13.0, *) {
         return UIApplication.shared.connectedScenes.contains { $0 is UIWindowScene }
@@ -26,48 +27,59 @@ public var isSceneEnabled: Bool {
     return false
 }
 
-/// 当前激活的 UIWindowScene
+/// 当前前台的 UIWindowScene
+///
+/// 优先选择 `foregroundActive`，没有活跃场景时再选择 `foregroundInactive`。
+@MainActor
 public var activeWindowScene: UIWindowScene? {
-    return UIApplication.shared.connectedScenes
-        .compactMap { $0 as? UIWindowScene }
-        .first { $0.activationState == .foregroundActive }
+    preferredWindowScenes.first
 }
 
+/// 按前台活跃程度排序的 UIWindowScene。
+@MainActor
+private var preferredWindowScenes: [UIWindowScene] {
+    let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+    return [.foregroundActive, .foregroundInactive].flatMap { state in
+        scenes.filter { $0.activationState == state }
+    }
+}
 
 // MARK: - Window Access
 
-/// 获取当前主窗口（兼容 SceneDelegate / 非 SceneDelegate 环境）
+/// 获取当前主窗口
 ///
-/// - 优先从当前前台激活的 Scene 中获取 keyWindow；
-/// - 若未启用 SceneDelegate 或没有活跃 Scene，则回退至 AppDelegate.window；
-/// - 若依然获取不到，则兜底从 UIApplication.windows 中查找；
+/// - 按 `foregroundActive`、`foregroundInactive` 顺序遍历已连接的 UIWindowScene；
+/// - 每个场景优先取 keyWindow，再取可见的普通层级窗口；
 /// - 在 App Extension 环境下返回 nil（防止调用 UIApplication.shared 导致崩溃）。
 ///
+@MainActor
 public var kAppKeyWindow: UIWindow? {
 #if APP_EXTENSION
     return nil
 #else
-    activeWindowScene?.windows.first(where: \.isKeyWindow) ?? UIApplication.shared.windows.first(where: \.isKeyWindow)
+    for scene in preferredWindowScenes {
+        if let keyWindow = scene.windows.first(where: \.isKeyWindow) {
+            return keyWindow
+        }
+        if let visibleWindow = scene.windows.first(where: { !$0.isHidden && $0.alpha > 0 && $0.windowLevel == .normal }) {
+            return visibleWindow
+        }
+    }
+    return nil
 #endif
 }
 
 // MARK: - Lay out
 
-/// 状态栏高度 iPhone X (44.0) / iPhone 11 (48.0) / 20.0
-//public let kStatusBarHeight: CGFloat = UIApplication.shared.statusBarFrame.size.height
-
-/// 获取状态栏高度  (兼容 SceneDelegate / 非 SceneDelegate 环境)
-public var kStatusBarHeight: CGFloat {
-    // UIApplication.shared.statusBarFrame 在 iOS 13+ 已废弃，但在 未启用 SceneDelegate 的项目，没有官方替代 API 能获取状态栏高度
-    activeWindowScene?.statusBarManager?.statusBarFrame.height ?? UIApplication.shared.statusBarFrame.height
-}
-
 /// 屏幕尺寸（动态）
+@MainActor
 public var kScreenBounds: CGRect {
     activeWindowScene?.screen.bounds ?? UIScreen.main.bounds
 }
 
+@MainActor
 public var kScreenW: CGFloat { kScreenBounds.width }
+@MainActor
 public var kScreenH: CGFloat { kScreenBounds.height }
 
 /// 以iPhone6屏幕为设计底稿的比例换算
@@ -75,7 +87,9 @@ public var kScreenH: CGFloat { kScreenBounds.height }
 //public let kScaleH = kScreenH/667.0
 //public func kScaleW(_ w: CGFloat) -> CGFloat { return kScaleW * w }
 //public func kScaleH(_ h: CGFloat) -> CGFloat { return kScaleH * h }
+@MainActor
 public func kScaleW(_ value: CGFloat) -> CGFloat { value * kScreenW / 375.0 }
+@MainActor
 public func kScaleH(_ value: CGFloat) -> CGFloat { value * kScreenH / 667.0 }
 
 /// 默认导航栏高度
@@ -84,43 +98,66 @@ public let kNavBarHeight: CGFloat = 44.0
 public let kTabBarHeight: CGFloat = 49.0
 
 /// 获取当前 SafeAreaInsets
+@MainActor
 public var kSafeAreaInsets: UIEdgeInsets { kAppKeyWindow?.safeAreaInsets ?? .zero }
 
 /// 是否有前刘海  (iPhone X系统 iOS 11+)
 // public let kIsHaveBangs = kStatusBarHeight > 20.0
+@MainActor
 public var kIsHaveBangs: Bool { kSafeAreaInsets.bottom > 0 }
 
 /// 顶部安全区域高度
+@MainActor
 public var kTopSafeHeight: CGFloat { kSafeAreaInsets.top }
 
+@available(*, deprecated, renamed: "kTopSafeHeight", message: "statusBarFrame 在 iOS 26 上与布局 safe area 易不一致，请改用 kTopSafeHeight。")
+@MainActor
+public var kStatusBarHeight: CGFloat { kTopSafeHeight }
+
 /// 底部安全区域高度
+@MainActor
 public var kBottomSafeHeight: CGFloat { kSafeAreaInsets.bottom }
 
-/// 状态栏和导航栏总高度
-public var kNavBarAndSafeHeight: CGFloat { kStatusBarHeight + kNavBarHeight }
+/// 状态栏和导航栏总高度（与 ViewController.naviBar 约束一致，优先 safeAreaInsets.top）
+@MainActor
+public var kNavBarAndSafeHeight: CGFloat { kTopSafeHeight + kNavBarHeight }
 
 /// tabbar和底部安全区域总高度
+@MainActor
 public var kTabBarAndSafeHeight: CGFloat { kBottomSafeHeight + kTabBarHeight }
 
 // MARK: - Info
 
-public let kSystemVersion = Float(UIDevice.current.systemVersion) ?? 0.0
-public let kiOS13Later = (kSystemVersion >= 13)
-public let kiOS14Later = (kSystemVersion >= 14)
+public var kSystemVersion: Float { Float(UIDevice.current.systemVersion) ?? 0.0 }
+public var kiOS13Later: Bool { kSystemVersion >= 13 }
+public var kiOS14Later: Bool { kSystemVersion >= 14 }
+
+/// 宿主 Info.plist `UIDesignRequiresCompatibility`。未配置视为 `false`。读 `Bundle.main`，不是 Pod bundle。
+public var kUIDesignRequiresCompatibility: Bool {
+    Bundle.main.object(forInfoDictionaryKey: "UIDesignRequiresCompatibility") as? Bool ?? false
+}
+
+/// Liquid Glass 是否生效。iOS 26 读 `UIDesignRequiresCompatibility`；更早为关，iOS 27 SDK 起为开。
+public var isLiquidGlassEnabled: Bool {
+    if #available(iOS 27.0, *) { return true }
+    guard #available(iOS 26.0, *) else { return false }
+    return !kUIDesignRequiresCompatibility
+}
 
 /// IDFVString
-public let kIDFVString = UIDevice.current.identifierForVendor?.uuidString
+public var kIDFVString: String? { UIDevice.current.identifierForVendor?.uuidString }
 
 /// info.plist
-public let kInfoPlist = Bundle.main.infoDictionary ?? Dictionary()
+public var kInfoPlist: [String: Any] { Bundle.main.infoDictionary ?? Dictionary() }
 /// 版本号（内部标示）
-public let kAppVersion = kInfoPlist["CFBundleShortVersionString"] as? String
+public var kAppVersion: String? { kInfoPlist["CFBundleShortVersionString"] as? String }
 /// Build号
-public let kAppBuildVersion = kInfoPlist["CFBundleVersion"] as? String
+public var kAppBuildVersion: String? { kInfoPlist["CFBundleVersion"] as? String }
 
 /// 获取当前最顶层显示的 UIViewController
 /// - Parameter vc: 可选的起始 UIViewController，默认从主窗口 rootViewController 开始
 /// - Returns: 当前屏幕上最顶层的 UIViewController（模态、Navigation、TabBar 都会展开）
+@MainActor
 public func stackTopViewController(from vc: UIViewController? = nil) -> UIViewController? {
     var current = vc ?? kAppKeyWindow?.rootViewController
 

@@ -9,7 +9,8 @@ import Foundation
 import MJRefresh
 
 private struct MJRefreshLocalizedProviderKeys {
-    static var mjHeaderDateFormat = 0
+    // 仅作 associated object 地址，不读写键值本身。
+    nonisolated(unsafe) static var mjHeaderDateFormat = 0
 }
 
 // MARK: - MJRefreshLocalizedProvider

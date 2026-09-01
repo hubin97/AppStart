@@ -22,8 +22,16 @@ open class NavigationController: UINavigationController {
     open override func viewDidLoad() {
         super.viewDidLoad()
         self.view.backgroundColor = .white
-        self.navigationBar.isTranslucent = false
+        if NaviBar.usesSystemBar {
+            Self.applySystemBarAppearance(to: navigationBar)
+        } else {
+            self.navigationBar.isTranslucent = false
+        }
         self.delegate = self
+        self.interactivePopGestureRecognizer?.delegate = self
+        self.interactivePopGestureRecognizer?.addTarget(self, action: #selector(handlePopGesture(_:)))
+        contentPopGestureRecognizer?.delegate = self
+        self.updatePopGestureAvailability()
 
 //        if responds(to: #selector(getter: interactivePopGestureRecognizer)) {
 //            delegate = self
@@ -56,7 +64,9 @@ open class NavigationController: UINavigationController {
         self.init(rootViewController: rootVc)
         let attributes = barAttributes ?? BarAttributes()
         let titleTextAttributes = [NSAttributedString.Key.foregroundColor: attributes.titleColor, NSAttributedString.Key.font: attributes.titleFont]
-        if #available(iOS 13.0, *) {
+        if NaviBar.usesSystemBar {
+            Self.applySystemBarAppearance(to: navigationBar, titleTextAttributes: titleTextAttributes)
+        } else if #available(iOS 13.0, *) {
             let appearance = UINavigationBarAppearance()
             appearance.backgroundColor = attributes.barTintColor
             appearance.titleTextAttributes = titleTextAttributes
@@ -81,6 +91,37 @@ open class NavigationController: UINavigationController {
     open override var preferredInterfaceOrientationForPresentation: UIInterfaceOrientation {
         return .portrait
     }
+
+    // MARK: - Back Gesture
+
+    /// 返回手势由导航控制器统一管理，页面只声明是否允许并接收开始回调。
+    func updatePopGestureAvailability() {
+        let isRootViewController = viewControllers.count <= 1
+        let isEnabledByTopViewController = (topViewController as? ViewController)?.enablePopGestureRecognizer ?? true
+        let isEnabled = !isRootViewController && isEnabledByTopViewController
+        interactivePopGestureRecognizer?.isEnabled = isEnabled
+        contentPopGestureRecognizer?.isEnabled = isEnabled
+    }
+
+    /// iOS 26 玻璃栏的`内容区侧滑`这是26的新功能特性。边缘侧滑一直是 `interactivePopGestureRecognizer`（iOS 7 起默认开）。
+    /// `#available` 只为过编译：`usesSystemBar` 是 `Bool`，编译器不能据此开放 iOS 26 API。
+    private var contentPopGestureRecognizer: UIGestureRecognizer? {
+        guard NaviBar.usesSystemBar else { return nil }
+        if #available(iOS 26.0, *) {
+            return interactiveContentPopGestureRecognizer
+        }
+        return nil
+    }
+
+    private func isContentPopGesture(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard let contentPopGestureRecognizer else { return false }
+        return gestureRecognizer === contentPopGestureRecognizer
+    }
+
+    @objc private func handlePopGesture(_ gestureRecognizer: UIGestureRecognizer) {
+        guard gestureRecognizer.state == .began else { return }
+        (topViewController as? ViewController)?.popGestureAction()
+    }
 }
 
 // MARK: - Others
@@ -94,7 +135,9 @@ extension NavigationController {
     ///   - shadowColor: 导航栏底部下划线颜色, 默认同背景色
     public func setBarAppearance(barTintColor: UIColor = .white, titleFont: UIFont = UIFont.systemFont(ofSize: 17.0, weight: .medium), titleColor: UIColor = .black, shadowColor: UIColor? = nil) {
         let titleTextAttributes = [NSAttributedString.Key.foregroundColor: titleColor, NSAttributedString.Key.font: titleFont]
-        if #available(iOS 13.0, *) {
+        if NaviBar.usesSystemBar {
+            Self.applySystemBarAppearance(to: navigationBar, titleTextAttributes: titleTextAttributes)
+        } else if #available(iOS 13.0, *) {
             let appearance = UINavigationBarAppearance()
             appearance.backgroundColor = barTintColor
             appearance.titleTextAttributes = titleTextAttributes
@@ -106,22 +149,32 @@ extension NavigationController {
             navigationBar.titleTextAttributes = titleTextAttributes
         }
     }
+    
+    /// iOS 26：透明系统导航栏，留给 Liquid Glass；勿设置不透明 backgroundColor。
+    static func applySystemBarAppearance(
+        to navigationBar: UINavigationBar,
+        titleTextAttributes: [NSAttributedString.Key: Any]? = nil
+    ) {
+        navigationBar.isTranslucent = true
+        
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithTransparentBackground()
+        appearance.shadowColor = .clear
+        if let titleTextAttributes {
+            appearance.titleTextAttributes = titleTextAttributes
+        }
+        
+        navigationBar.standardAppearance = appearance
+        navigationBar.scrollEdgeAppearance = appearance
+        navigationBar.compactAppearance = appearance
+    }
 }
 
 // MARK: - UINavigationControllerDelegate
 extension NavigationController: UINavigationControllerDelegate {
     
-    public func navigationController(_ navigationController: UINavigationController, willShow viewController: UIViewController, animated: Bool) {
-        let rooVc = navigationController.viewControllers[0]
-        if rooVc != viewController {
-            navigationBar.backIndicatorImage = UIImage()
-            navigationBar.backIndicatorTransitionMaskImage = UIImage()
-            // 设置系统自带的右滑手势返回
-//            interactivePopGestureRecognizer?.delegate = nil
-        }
-    }
-    
     public func navigationController(_ navigationController: UINavigationController, didShow viewController: UIViewController, animated: Bool) {
+        updatePopGestureAvailability()
 //        if responds(to: #selector(getter: interactivePopGestureRecognizer)) {
 //            interactivePopGestureRecognizer?.isEnabled = true
 //        }
@@ -163,5 +216,21 @@ extension NavigationController: UINavigationControllerDelegate {
             let isHidden = viewControllers.count > 1
             tabBarController?.setTabBarHidden(isHidden, animated: false)
         }
+    }
+}
+
+// MARK: - UIGestureRecognizerDelegate
+
+extension NavigationController: UIGestureRecognizerDelegate {
+
+    /// 自定义 leftBarButtonItem / hidesBackButton 后，系统会丢掉默认侧滑，这里补回。
+    public func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard gestureRecognizer == interactivePopGestureRecognizer
+                || isContentPopGesture(gestureRecognizer) else {
+            return true
+        }
+        let isRootViewController = viewControllers.count <= 1
+        let isEnabledByTopViewController = (topViewController as? ViewController)?.enablePopGestureRecognizer ?? true
+        return !isRootViewController && isEnabledByTopViewController
     }
 }
