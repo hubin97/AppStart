@@ -8,6 +8,7 @@
 import Foundation
 import UIKit
 import WebKit
+import SnapKit
 
 // MARK: - global var and methods
 
@@ -20,6 +21,25 @@ open class WKWebController: ViewController, WKWebScriptMsgHandleAble {
     //
     public var wkMethodName: String?
     public var wkReceiveDataBlock: WKReceiveBlock?
+
+    /// 允许在容器内导航的 URL scheme。
+    open var allowedNavigationSchemes: Set<String> {
+        ["file", "http", "https"]
+    }
+
+    /// 允许导航的远程 host；nil 表示不限制 http/https host。
+    ///
+    /// 加载第三方内容的业务容器可重写此属性，将页面导航限制在受控域名内。
+    open var allowedNavigationHosts: Set<String>? {
+        nil
+    }
+
+    /// 允许调用 Native bridge 的远程 host；本地 file URL 默认可信。
+    ///
+    /// 远程页面默认不能调用 bridge，业务容器必须显式提供可信 host。
+    open var trustedBridgeHosts: Set<String> {
+        []
+    }
     
     /// 是否使用web页标题 `仅控制首次加载, 若是页面重定向或者页面跳转, 标题跟随web页变更`
     private var useWebTitle: Bool = true
@@ -38,11 +58,10 @@ open class WKWebController: ViewController, WKWebScriptMsgHandleAble {
         let config = WKWebViewConfiguration.init()
         config.preferences = WKPreferences()
         config.preferences.minimumFontSize = 10
-        config.preferences.javaScriptEnabled = true
+        config.defaultWebpagePreferences.allowsContentJavaScript = true
         // web页视频内联播放支持必须加上下面两行,这点与Safari不一样
         config.allowsInlineMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = []
-        //config.preferences.allowsContentJavaScript = true
         //config.preferences.javaScriptCanOpenWindowsAutomatically = false
         let js_source = "document.documentElement.style.webkitTouchCallout='none';" + "document.documentElement.style.webkitUserSelect='none';"
         let userScript = WKUserScript.init(source: js_source, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
@@ -53,7 +72,7 @@ open class WKWebController: ViewController, WKWebScriptMsgHandleAble {
     /// 容器
     @objc // !!!!: 必要的
     public lazy var wkWebView: WKWebView = {
-        let wkWebView = WKWebView.init(frame: CGRect(x: 0, y: kNavBarAndSafeHeight, width: kScreenW, height: kScreenH - kNavBarAndSafeHeight), configuration: self.wkConfig)
+        let wkWebView = WKWebView(frame: .zero, configuration: self.wkConfig)
         wkWebView.uiDelegate = self
         wkWebView.navigationDelegate = self
         wkWebView.scrollView.delegate = self
@@ -93,15 +112,14 @@ open class WKWebController: ViewController, WKWebScriptMsgHandleAble {
     public var progressViewHeight: CGFloat? {
         didSet {
             if let height = progressViewHeight {
-                let rate = height/progressView.frame.size.height
-                progressView.transform = CGAffineTransform.init(scaleX: 1.0, y: rate)
+                progressViewHeightConstraint?.update(offset: height)
             }
         }
     }
     
     fileprivate lazy var progressView: UIProgressView = {
         ///UIProgressView的高度设置无效, 且 iOS14高度还有变化
-        let _progressView = UIProgressView.init(frame: CGRect(x: 0, y: kNavBarAndSafeHeight, width: self.wkWebView.frame.width, height: 1))
+        let _progressView = UIProgressView(progressViewStyle: .bar)
         _progressView.progressViewStyle = .bar
         _progressView.tintColor = .systemBlue
         _progressView.backgroundColor = .lightGray
@@ -111,6 +129,7 @@ open class WKWebController: ViewController, WKWebScriptMsgHandleAble {
     
     var titleObervation: NSKeyValueObservation?
     var progressObervation: NSKeyValueObservation?
+    private var progressViewHeightConstraint: Constraint?
 
     lazy var backButton: UIButton = {
         let _backButton = UIButton(type: .custom)
@@ -122,18 +141,25 @@ open class WKWebController: ViewController, WKWebScriptMsgHandleAble {
   
     lazy var naviLeftView: UIView = {
         let _backButton = UIButton(type: .custom)
-        _backButton.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
         _backButton.setImage(Asset.iconLeftBlack.image.adaptRTL, for: .normal)
         _backButton.addTarget(self, action: #selector(backAction(_:)), for: .touchUpInside)
 
         let _closeButton = UIButton(type: .custom)
-        _closeButton.frame = CGRect(x: view.isRTL ? 0: 44, y: 0, width: 44, height: 44)
         _closeButton.setImage(Asset.iconCloseBlack.image.adaptRTL, for: .normal)
         _closeButton.addTarget(self, action: #selector(closeAction(_:)), for: .touchUpInside)
 
         let _naviLeftView = UIView(frame: CGRect(x: 10, y: 0, width: 88, height: 44))
         _naviLeftView.addSubview(_backButton)
         _naviLeftView.addSubview(_closeButton)
+        _backButton.snp.makeConstraints { make in
+            make.leading.top.bottom.equalToSuperview()
+            make.width.height.equalTo(44)
+        }
+        _closeButton.snp.makeConstraints { make in
+            make.leading.equalTo(_backButton.snp.trailing)
+            make.top.bottom.trailing.equalToSuperview()
+            make.width.height.equalTo(44)
+        }
         return _naviLeftView
     }()
     
@@ -142,6 +168,15 @@ open class WKWebController: ViewController, WKWebScriptMsgHandleAble {
         self.naviBar.setLeftView(self.backButton)
         self.view.addSubview(self.wkWebView)
         self.view.addSubview(self.progressView)
+
+        self.wkWebView.snp.makeConstraints { make in
+            make.top.equalTo(self.naviBar.snp.bottom)
+            make.leading.trailing.bottom.equalToSuperview()
+        }
+        self.progressView.snp.makeConstraints { make in
+            make.top.leading.trailing.equalTo(self.wkWebView)
+            self.progressViewHeightConstraint = make.height.equalTo(self.progressViewHeight ?? 1).constraint
+        }
         
         self.view.backgroundColor = .white
         self.wkWebView.navigationDelegate = self
@@ -149,26 +184,6 @@ open class WKWebController: ViewController, WKWebScriptMsgHandleAble {
         self.progressViewTintColor = .systemBlue
         
         self.addObserver()
-    }
-    
-    open override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        // 白屏问题处理
-        if self.wkWebView.title == nil {
-            self.wkWebView.reload()
-        }
-    }
-    
-    open override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
-        
-        self.titleObervation = nil
-        self.titleObervation?.invalidate()
-        self.progressObervation = nil
-        self.progressObervation?.invalidate()
-
-        self.wkWebView.navigationDelegate = nil
-        self.wkWebView.uiDelegate = nil
     }
     
     @objc open func backAction(_ sender: UIButton) {
@@ -194,8 +209,6 @@ open class WKWebController: ViewController, WKWebScriptMsgHandleAble {
     // 如果返回历史记录不为空, 则显示关闭按钮
     // https://www.facebook.com/groups/momcozyusercenter?utm_source=user+center&utm_medium=app&utm_campaign=app-banner&Language=zh-CN
     func updateBackForwardState() {
-        // 暂不适配RTL
-        guard !view.isRTL else { return }
         let isLast = self.wkWebView.backForwardList.backList.isEmpty
         if isHideLeftView && isLast {
             self.naviBar.leftView?.isHidden = true
@@ -203,35 +216,62 @@ open class WKWebController: ViewController, WKWebScriptMsgHandleAble {
             self.naviBar.setLeftView(isLast ? backButton: naviLeftView)
         }
     }
+
+    /// 判断 WebView 是否允许导航到指定 URL。
+    ///
+    /// 默认允许 file/http/https；业务容器可通过 allowedNavigationHosts 限制远程域名。
+    open func shouldAllowNavigation(to url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased(),
+              allowedNavigationSchemes.contains(scheme) else {
+            return false
+        }
+        guard scheme == "http" || scheme == "https",
+              let allowedNavigationHosts else {
+            return true
+        }
+        guard let host = url.host?.lowercased() else { return false }
+        return allowedNavigationHosts.contains { $0.lowercased() == host }
+    }
+
+    /// 判断当前页面是否允许向 Native bridge 发送消息。
+    open func shouldAcceptBridgeMessage(from url: URL?) -> Bool {
+        guard let url else { return false }
+        if url.isFileURL { return true }
+        guard let host = url.host?.lowercased() else { return false }
+        return trustedBridgeHosts.contains { $0.lowercased() == host }
+    }
 }
 
 // MARK: - private mothods
 extension WKWebController {
     
     func addObserver() {
-        self.progressObervation = self.observe(\.wkWebView.estimatedProgress, options: [.old, .new]) {[weak self] (_, change) in
+        self.progressObervation = self.observe(\.wkWebView.estimatedProgress, options: [.old, .new]) { (_, change) in
             let newValue: Float = Float(change.newValue ?? 0)
             let oldValue: Float = Float(change.oldValue ?? 0)
-            guard let ws = self, newValue > oldValue && newValue > 0.1 else { return }
-            print("newValue>>\(newValue)")
-            ws.progressView.isHidden = false
-            ws.progressView.setProgress(newValue, animated: true)
-            if newValue >= 1.0 {
-                UIView.animate(withDuration: 0.3, delay: 0.1, options: .curveEaseInOut) {
-                    ws.progressView.isHidden = true
-                } completion: { finish in
-                    if finish {
-                        ws.progressView.setProgress(0.0, animated: false)
+            Task { @MainActor [weak self] in
+                guard let self, newValue > oldValue && newValue > 0.1 else { return }
+                print("newValue>>\(newValue)")
+                self.progressView.isHidden = false
+                self.progressView.setProgress(newValue, animated: true)
+                if newValue >= 1.0 {
+                    UIView.animate(withDuration: 0.3, delay: 0.1, options: .curveEaseInOut) {
+                        self.progressView.isHidden = true
+                    } completion: { finish in
+                        if finish {
+                            self.progressView.setProgress(0.0, animated: false)
+                        }
                     }
                 }
             }
         }
         
-        self.titleObervation = self.observe(\.wkWebView.title, options: [.old, .new], changeHandler: {[weak self] (_, change) in
-            guard let ws = self, let title = change.newValue else { return }
+        self.titleObervation = self.observe(\.wkWebView.title, options: [.old, .new], changeHandler: { [weak self] (_, change) in
+            guard let title = change.newValue else { return }
             print("Title changed: \(title ?? "")")
-            if ws.useWebTitle {
-                ws.naviBar.title = title
+            Task { @MainActor [weak self] in
+                guard let self, self.useWebTitle else { return }
+                self.naviBar.title = title
             }
         })
     }
@@ -308,24 +348,7 @@ extension WKWebController {
     
     open func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard let methodName = self.wkMethodName, methodName.isEmpty == false && methodName == message.name else { return }
-        if let jsHandleBlcok = self.wkReceiveDataBlock {
-            jsHandleBlcok(methodName, message.body)
-        } else {
-            // 自定义默认反射
-            guard let msg = message.body as? String, let dict = msg.data?.dict else { return }
-            guard let method = dict["method"] as? String else { return }
-            var selectorName = method
-            var param: [String: Any]?
-            if let value = dict["data"] as? [String: Any] {
-                selectorName = "\(method):"
-                param = value
-            }
-            print("method=> \(selectorName), param =>\(param?.string ?? "")")
-            let selector = NSSelectorFromString(selectorName)
-            if self.responds(to:selector) {
-                self.perform(selector, with: param)
-            }
-        }
+        self.wkReceiveDataBlock?(methodName, message.body)
     }
 }
 
@@ -350,6 +373,15 @@ extension WKWebController: WKUIDelegate, WKNavigationDelegate {
         // 本地加载时会打印, 可以忽略 ?
         print("webView:didFailProvisionalNavigation: \(error.localizedDescription)")
     }
+
+    public func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        guard let url = navigationAction.request.url,
+              shouldAllowNavigation(to: url) else {
+            decisionHandler(.cancel)
+            return
+        }
+        decisionHandler(.allow)
+    }
     
     public func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
         decisionHandler(.allow)
@@ -370,6 +402,7 @@ extension WKWebController: WKUIDelegate, WKNavigationDelegate {
 }
 
 // MARK: - Weak wrapper
+@MainActor
 private class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
     weak var delegate: WKScriptMessageHandler?
 
@@ -383,6 +416,7 @@ private class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
 }
 
 // MARK: - WKWebScriptMsgHandleAble
+@MainActor
 public protocol WKWebScriptMsgHandleAble: WKScriptMessageHandler {
     
     typealias WKReceiveBlock = ((_ action: String, _ param: Any) -> Void)
@@ -419,6 +453,9 @@ extension WKWebScriptMsgHandleAble {
     
     /// 自动用 WeakScriptMessageHandler 包装，避免循环引用
     public func addMethod(name: String) {
+        if let currentName = self.wkMethodName {
+            self.wkConfig.userContentController.removeScriptMessageHandler(forName: currentName)
+        }
         self.wkMethodName = name
         self.wkConfig.userContentController.add(
             WeakScriptMessageHandler(delegate: self),
@@ -434,9 +471,19 @@ extension WKWebScriptMsgHandleAble {
     
     public func removeMethod(name: String) {
         self.wkConfig.userContentController.removeScriptMessageHandler(forName: name)
+        if self.wkMethodName == name {
+            self.wkMethodName = nil
+            self.wkReceiveDataBlock = nil
+        }
     }
     
     public func removeAllMethods() {
+        guard let methodName = self.wkMethodName else { return }
+        self.removeMethod(name: methodName)
+    }
+
+    /// 移除通过配置注入的全部 user script。
+    public func removeAllUserScripts() {
         self.wkConfig.userContentController.removeAllUserScripts()
     }
 }
