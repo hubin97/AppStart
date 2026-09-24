@@ -70,39 +70,27 @@ extension Extension_Image {
 //        return alpha == CGImageAlphaInfo.first || alpha == CGImageAlphaInfo.last || alpha == CGImageAlphaInfo.premultipliedFirst || alpha == CGImageAlphaInfo.premultipliedLast
 //    }
     
-    /// 水平翻转（即左右镜像）
-    /// - Returns: 新Image对象
-    public func horizontalFlip() -> UIImage {
-        //翻转图片的方向
+    /// 水平翻转（即左右镜像）。无 CG 底图或方向非法时返回 `nil`。
+    /// - Returns: 新 Image 对象
+    public func horizontalFlip() -> UIImage? {
         let flipImageOrientation = (self.imageOrientation.rawValue + 4) % 8
         guard let cgImage = self.cgImage,
               let orientation = UIImage.Orientation(rawValue: flipImageOrientation) else {
-            preconditionFailure("Horizontal flipping requires a CG-backed image with a valid orientation.")
+            return self
         }
-        //翻转图片
-        let flipImage =  UIImage(cgImage: cgImage,
-            scale:self.scale,
-            orientation:orientation
-        )
-        return flipImage
+        return UIImage(cgImage: cgImage, scale: self.scale, orientation: orientation)
     }
     
-    /// 垂直翻转
-    /// - Returns: 新Image对象
-    public func verticalFlip() -> UIImage {
-        //翻转图片的方向
+    /// 垂直翻转。无 CG 底图或方向非法时返回 `nil`。
+    /// - Returns: 新 Image 对象
+    public func verticalFlip() -> UIImage? {
         var flipImageOrientation = (self.imageOrientation.rawValue + 4) % 8
-        flipImageOrientation += flipImageOrientation%2==0 ? 1 : -1
+        flipImageOrientation += flipImageOrientation % 2 == 0 ? 1 : -1
         guard let cgImage = self.cgImage,
               let orientation = UIImage.Orientation(rawValue: flipImageOrientation) else {
-            preconditionFailure("Vertical flipping requires a CG-backed image with a valid orientation.")
+            return self
         }
-        //翻转图片
-        let flipImage =  UIImage(cgImage:cgImage,
-                                 scale:self.scale,
-                                 orientation:orientation
-        )
-        return flipImage
+        return UIImage(cgImage: cgImage, scale: self.scale, orientation: orientation)
     }
 
     /// 获取位置处颜色

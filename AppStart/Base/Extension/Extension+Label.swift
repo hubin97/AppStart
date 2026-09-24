@@ -128,11 +128,13 @@ extension Extension_Label {
 
 extension Extension_Label {
     
-    /// 设置加粗斜体
+    /// 设置加粗斜体。系统字体不支持粗斜体组合时回退 `systemFont`。
     /// - Parameter fontSize: 字号
     public func setBoldItalic(_ fontSize: CGFloat) {
-        guard let descriptor = UIFont.systemFont(ofSize: fontSize).fontDescriptor.withSymbolicTraits([.traitBold, .traitItalic]) else {
-            preconditionFailure("The system font does not support combined bold and italic traits.")
+        let systemFont = UIFont.systemFont(ofSize: fontSize)
+        guard let descriptor = systemFont.fontDescriptor.withSymbolicTraits([.traitBold, .traitItalic]) else {
+            self.font = systemFont
+            return
         }
         self.font = UIFont(descriptor: descriptor, size: fontSize)
     }

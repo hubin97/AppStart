@@ -80,25 +80,31 @@ public enum QuickPaths {
         return dicPath.path
     }
     
-    /// 创建空文件
+    /// 创建文件。目标已存在时视为成功，不会覆盖原内容。
     /// - Parameters:
     ///   - filePath: 文件路径
-    ///   - contents: 默认写入空字符串
-    public static func createFile(filePath: String, contents: Any = "") {
-        let exist = FileManager.default.fileExists(atPath: filePath)
-        if !exist {
-            //let data = Data(base64Encoded:"aGVsbG8gd29ybGQ=" ,options:.ignoreUnknownCharacters)
-            var appendedData = Data()
-            if let contents = contents as? String {
-                appendedData = contents.data(using: String.Encoding.utf8, allowLossyConversion: true)!
-            } else if let contents = contents as? UIImage {
-                appendedData = contents.pngData()!
-            } else if let contents = contents as? Data {
-                appendedData = contents
-            }
-            let createSuccess = FileManager.default.createFile(atPath: filePath, contents: appendedData, attributes:nil)
-            print("文件创建结果: \(createSuccess)")
+    ///   - contents: 支持 `String`、`UIImage`、`Data`，默认写入空字符串
+    /// - Returns: 文件已存在或创建成功时返回 `true`
+    @discardableResult
+    public static func createFile(filePath: String, contents: Any = "") -> Bool {
+        if FileManager.default.fileExists(atPath: filePath) {
+            return true
         }
+
+        let appendedData: Data
+        if let contents = contents as? String {
+            guard let data = contents.data(using: .utf8, allowLossyConversion: true) else { return false }
+            appendedData = data
+        } else if let contents = contents as? UIImage {
+            guard let data = contents.pngData() else { return false }
+            appendedData = data
+        } else if let contents = contents as? Data {
+            appendedData = contents
+        } else {
+            return false
+        }
+
+        return FileManager.default.createFile(atPath: filePath, contents: appendedData, attributes: nil)
     }
     
     /// 文件内末尾写入

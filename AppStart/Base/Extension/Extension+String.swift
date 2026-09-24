@@ -81,56 +81,51 @@ extension Extension_String {
     /// - Returns: 字符串
     public func toPYHead() -> String {
         let pinyinArray = self.toPinyin().components(separatedBy: " ")
-        let initials = pinyinArray.compactMap { String(format: "%c", $0.cString(using:.utf8)![0]) }
-        let firstCharJoin = initials.joined().uppercased()
-        return firstCharJoin
+        let initials = pinyinArray.compactMap { token -> String? in
+            guard let first = token.utf8.first else { return nil }
+            return String(format: "%c", first)
+        }
+        return initials.joined().uppercased()
     }
     
     //MARK: - 字符转日期
-    /// 转指定格式Date (注意: 时区跟随系统)
-    /// - Parameters:
-    ///   - format: 格式,` 一般情况都是使用 UIDatePicker的 setDate(:)方法, 然后这里面, 系统已经帮忙处理了`
-    /// - Returns: Date
-    public func format(with format: String = "yyyy-MM-dd HH:mm:ss") -> Date {
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = format
-        dateFormatter.timeZone = TimeZone.autoupdatingCurrent
-        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
-        guard let date = dateFormatter.date(from: self) else {
-            print(">> Date 转换失败, 取当前时间")
-            return Date()
-        }
-        return date
-    }
-    
-    /// 转指定格式Date  `(注意此方法不常用)`
-    ///    “GMT”：格林威治标准时间
-    ///    “Asia/Shanghai”：北京时间
-    ///    “America/New_York”：纽约时间
-    ///    “Europe/London”：伦敦时间
-    ///    “Australia/Sydney”：悉尼时间
+    /// 按指定格式转为 `Date`。
     ///
-    ///    UTC是协调世界时（Coordinated Universal Time）的缩写。它是一种世界统一的时间标准，
-    ///    通过对格林威治标准时间（GMT）进行微调，以确保全球各地的时间一致性。
-    ///    UTC不受夏令时的影响，始终保持稳定。其他时区则以UTC为基准进行计算和调整。
-    ///    例如，UTC-5表示比协调世界时早5个小时，而UTC+1表示比协调世界时晚1个小时。
+    /// `timeZone` 默认跟随系统。解析海外当地时间时，应传入地区时区，
+    /// 例如 `TimeZone(identifier: "America/New_York")`，系统会按日期应用夏令时规则。
     ///
     /// - Parameters:
-    ///   - format: 格式
-    ///   - identifier: 指定时区标识  `系统默认字符串为UTC`, 默认使用 UTC 即可
-    /// - Returns: Date
-    public func format(with format: String = "yyyy-MM-dd HH:mm:ss", identifier: String = "UTC") -> Date {
+    ///   - format: 日期格式。
+    ///   - timeZone: 日期字符串所属时区。
+    ///   - locale: 解析规则，默认 `en_US_POSIX`，避免用户地区设置改变固定格式含义。
+    /// - Returns: 解析成功时返回日期；格式错误或遇到不存在的当地时间时返回 `nil`。
+    public func date(
+        with format: String = "yyyy-MM-dd HH:mm:ss",
+        timeZone: TimeZone = .autoupdatingCurrent,
+        locale: Locale = Locale(identifier: "en_US_POSIX")
+    ) -> Date? {
         let dateFormatter = DateFormatter()
+        dateFormatter.locale = locale
+        dateFormatter.calendar = Calendar(identifier: .gregorian)
+        dateFormatter.timeZone = timeZone
         dateFormatter.dateFormat = format
-        dateFormatter.timeZone = TimeZone.init(identifier: identifier)
-        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
-        guard let date = dateFormatter.date(from: self) else {
-            print(">> Date 转换失败, 取当前时间")
-            return Date()
-        }
-        return date
+        dateFormatter.isLenient = false
+        return dateFormatter.date(from: self)
     }
-    
+
+    /// 按 ISO 8601 格式转为 `Date`，支持 `Z` 或明确的 UTC 偏移量。
+    ///
+    /// 同时兼容带与不带小数秒的常见服务端时间格式。
+    public var iso8601Date: Date? {
+        let formatter = ISO8601DateFormatter()
+        if let date = formatter.date(from: self) {
+            return date
+        }
+
+        formatter.formatOptions.insert(.withFractionalSeconds)
+        return formatter.date(from: self)
+    }
+
     /// SwifterSwift: Check if string contains one or more emojis.
     ///
     ///        "Hello 😀".containEmoji -> true

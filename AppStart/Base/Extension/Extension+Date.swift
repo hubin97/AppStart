@@ -34,58 +34,37 @@ extension Extension_Date {
     
     /// 当前是星期几, 从周日开始
     public var week: Int {
-        guard let weekday = Calendar.autoupdatingCurrent.dateComponents([.year, .month, .day, .weekday], from: self).weekday else {
-            preconditionFailure("The current calendar could not determine a weekday for \(self).")
-        }
-        return weekday - 1
+        Calendar.autoupdatingCurrent.component(.weekday, from: self) - 1
     }
     
-    /// 上个月
-    public var lastMonth: Date {
-        guard let date = Calendar.autoupdatingCurrent.date(byAdding: .month, value: -1, to: self) else {
-            preconditionFailure("The current calendar could not calculate the previous month for \(self).")
-        }
-        return date
+    /// 上个月。日历无法计算时返回 `nil`。
+    public var lastMonth: Date? {
+        Calendar.autoupdatingCurrent.date(byAdding: .month, value: -1, to: self)
     }
     
-    /// 下个月
-    public var nextMonth: Date {
-        guard let date = Calendar.autoupdatingCurrent.date(byAdding: .month, value: 1, to: self) else {
-            preconditionFailure("The current calendar could not calculate the next month for \(self).")
-        }
-        return date
+    /// 下个月。日历无法计算时返回 `nil`。
+    public var nextMonth: Date? {
+        Calendar.autoupdatingCurrent.date(byAdding: .month, value: 1, to: self)
     }
     
-    /// 上一周
-    public var lastWeek: Date {
-        guard let date = Calendar.autoupdatingCurrent.date(byAdding: .day, value: -7, to: self) else {
-            preconditionFailure("The current calendar could not calculate the previous week for \(self).")
-        }
-        return date
+    /// 上一周。日历无法计算时返回 `nil`。
+    public var lastWeek: Date? {
+        Calendar.autoupdatingCurrent.date(byAdding: .day, value: -7, to: self)
     }
     
-    /// 下一周
-    public var nextWeek: Date {
-        guard let date = Calendar.autoupdatingCurrent.date(byAdding: .day, value: 7, to: self) else {
-            preconditionFailure("The current calendar could not calculate the next week for \(self).")
-        }
-        return date
+    /// 下一周。日历无法计算时返回 `nil`。
+    public var nextWeek: Date? {
+        Calendar.autoupdatingCurrent.date(byAdding: .day, value: 7, to: self)
     }
     
-    /// 后一天
-    public var nextDay: Date {
-        guard let date = Calendar.autoupdatingCurrent.date(byAdding: .day, value: 1, to: self) else {
-            preconditionFailure("The current calendar could not calculate the next day for \(self).")
-        }
-        return date
+    /// 后一天。日历无法计算时返回 `nil`。
+    public var nextDay: Date? {
+        Calendar.autoupdatingCurrent.date(byAdding: .day, value: 1, to: self)
     }
     
-    /// 前一天
-    public var lastDay: Date {
-        guard let date = Calendar.autoupdatingCurrent.date(byAdding: .day, value: -1, to: self) else {
-            preconditionFailure("The current calendar could not calculate the previous day for \(self).")
-        }
-        return date
+    /// 前一天。日历无法计算时返回 `nil`。
+    public var lastDay: Date? {
+        Calendar.autoupdatingCurrent.date(byAdding: .day, value: -1, to: self)
     }
 }
 
@@ -102,40 +81,22 @@ extension Extension_Date {
         return Int(CLongLong(round(self.timeIntervalSince1970 * 1000)))
     }
 
-    /// 按自定义 format 转字符串；`timeZone` 跟随系统。
+    /// 按指定格式与时区转为字符串。
     ///
-    /// - Parameter locale: 默认 `.autoupdatingCurrent`，适合 UI / 业务展示。
-    ///   仅在以下场景显式传 `Locale(identifier: "en_US_POSIX")`：
-    ///   - 与服务端约定的固定格式（序列化 / 反序列化、签名字段）
-    ///   - 日志、文件名、埋点等需跨用户 locale 稳定输出
-    ///   - format 虽为数字模板，但仍需排除 locale 对符号的干扰时
+    /// - Parameters:
+    ///   - format: 日期格式。
+    ///   - timeZone: 输出时区，默认跟随系统。
+    ///   - locale: 输出地区规则，默认跟随系统，适合 UI / 业务展示。
+    ///     与服务端约定固定格式时，可显式传入 `Locale(identifier: "en_US_POSIX")`。
     public func format(
         with format: String = "yyyy-MM-dd HH:mm:ss",
+        timeZone: TimeZone = .autoupdatingCurrent,
         locale: Locale = .autoupdatingCurrent
     ) -> String {
-        formatted(with: format, timeZone: .autoupdatingCurrent, locale: locale)
-    }
-
-    /// 按指定时区与 format 转字符串；`locale` 语义同 `format(with:locale:)`。
-    ///
-    /// 时区示例：`Asia/Shanghai`、`America/New_York`、`GMT`
-    public func format(
-        with format: String = "yyyy-MM-dd HH:mm:ss",
-        identifier: String,
-        locale: Locale = .autoupdatingCurrent
-    ) -> String {
-        formatted(
-            with: format,
-            timeZone: TimeZone(identifier: identifier) ?? .autoupdatingCurrent,
-            locale: locale
-        )
-    }
-
-    private func formatted(with format: String, timeZone: TimeZone, locale: Locale) -> String {
         let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = format
-        dateFormatter.timeZone = timeZone
         dateFormatter.locale = locale
+        dateFormatter.timeZone = timeZone
+        dateFormatter.dateFormat = format
         return dateFormatter.string(from: self)
     }
 }

@@ -31,7 +31,7 @@ open class ImageBrower: UIView {
     var imageModels = [ImageBrowerModel]()
 
     var originRect = CGRect()
-    var tapGes: UITapGestureRecognizer!
+    let tapGes = UITapGestureRecognizer()
     // 当前页下标
     var currentPage = 0
     public var callBackLastPage: CallBackPageBlock?
@@ -79,7 +79,7 @@ open class ImageBrower: UIView {
         addSubview(albumCollect)
         addSubview(indexLabel)
         
-        tapGes = UITapGestureRecognizer.init(target: self, action: #selector(hide))
+        tapGes.addTarget(self, action: #selector(hide))
         albumCollect.addGestureRecognizer(tapGes)
 
         // ImageCache.default.clearMemoryCache()

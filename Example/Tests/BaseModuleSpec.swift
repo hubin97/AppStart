@@ -38,6 +38,106 @@ class BaseModuleSpec: QuickSpec {
 
     override class func spec() {
 
+        describe("recoverable base extensions") {
+            it("returns optional dates for calendar arithmetic") {
+                let calendar = Calendar.autoupdatingCurrent
+                let date = calendar.date(from: DateComponents(year: 2024, month: 5, day: 15, hour: 12))!
+
+                expect(date.lastMonth).toNot(beNil())
+                expect(date.nextMonth).toNot(beNil())
+                expect(date.lastWeek).toNot(beNil())
+                expect(date.nextWeek).toNot(beNil())
+                expect(date.lastDay).toNot(beNil())
+                expect(date.nextDay).toNot(beNil())
+            }
+
+            it("returns nil when an image has no CG backing") {
+                expect(UIImage().horizontalFlip()).to(beNil())
+                expect(UIImage().verticalFlip()).to(beNil())
+            }
+
+            it("flips a CG-backed image") {
+                waitUntil { done in
+                    Task { @MainActor in
+                        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2))
+                        let image = renderer.image { context in
+                            UIColor.red.setFill()
+                            context.fill(CGRect(x: 0, y: 0, width: 2, height: 2))
+                        }
+
+                        expect(image.horizontalFlip()).toNot(beNil())
+                        expect(image.verticalFlip()).toNot(beNil())
+                        done()
+                    }
+                }
+            }
+
+            it("handles an empty string when extracting pinyin initials") {
+                expect("".toPYHead()) == ""
+            }
+
+            it("parses fixed date formats with an explicit locale and time zone") {
+                let newYork = TimeZone(identifier: "America/New_York")!
+                let locale = Locale(identifier: "en_US_POSIX")
+                let summer = "2026-07-01 12:00:00".date(timeZone: newYork, locale: locale)
+                let winter = "2026-12-01 12:00:00".date(timeZone: newYork, locale: locale)
+
+                expect(summer).toNot(beNil())
+                expect(winter).toNot(beNil())
+                expect(newYork.secondsFromGMT(for: summer!)) == -4 * 60 * 60
+                expect(newYork.secondsFromGMT(for: winter!)) == -5 * 60 * 60
+            }
+
+            it("rejects a nonexistent daylight-saving local time") {
+                let newYork = TimeZone(identifier: "America/New_York")!
+                let date = "2026-03-08 02:30:00".date(timeZone: newYork)
+
+                expect(date).to(beNil())
+            }
+
+            it("parses ISO 8601 offsets without daylight-saving ambiguity") {
+                let daylightTime = "2026-11-01T01:30:00-04:00".iso8601Date
+                let standardTime = "2026-11-01T01:30:00-05:00".iso8601Date
+                let fractionalTime = "2026-11-01T01:30:00.123-04:00".iso8601Date
+
+                expect(daylightTime).toNot(beNil())
+                expect(standardTime).toNot(beNil())
+                expect(fractionalTime).toNot(beNil())
+                expect(standardTime!.timeIntervalSince(daylightTime!)) == 60 * 60
+            }
+
+            it("formats dates with explicit locale and time zone") {
+                let date = "2026-07-01T16:00:00Z".iso8601Date!
+                let newYork = TimeZone(identifier: "America/New_York")!
+
+                expect(
+                    date.format(
+                        timeZone: newYork,
+                        locale: Locale(identifier: "en_US_POSIX")
+                    )
+                ) == "2026-07-01 12:00:00"
+            }
+
+            it("reports file creation failures without creating a file") {
+                let directory = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString, isDirectory: true)
+                let validFile = directory.appendingPathComponent("valid.txt")
+                let invalidFile = directory.appendingPathComponent("invalid.txt")
+                defer { try? FileManager.default.removeItem(at: directory) }
+
+                expect {
+                    try FileManager.default.createDirectory(
+                        at: directory,
+                        withIntermediateDirectories: true
+                    )
+                }.toNot(throwError())
+                expect(QuickPaths.createFile(filePath: validFile.path, contents: "content")) == true
+                expect(try? String(contentsOf: validFile, encoding: .utf8)) == "content"
+                expect(QuickPaths.createFile(filePath: invalidFile.path, contents: NSObject())) == false
+                expect(FileManager.default.fileExists(atPath: invalidFile.path)) == false
+            }
+        }
+
         describe("UIColor hex") {
             it("parses prefixed and bare 6-digit values") {
                 expect(UIColor(strictHexStr: "#FF0000")).toNot(beNil())
