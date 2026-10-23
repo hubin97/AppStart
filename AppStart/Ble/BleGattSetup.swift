@@ -129,18 +129,14 @@ final class BleGattSetup {
 
     // MARK: - Profile
 
-    /// 主 Profile 与 supplementaryGattProfiles 合并后的 Service UUID 列表（空表示未配置，discover 全部）
+    /// 主 Profile 在前，附加 Profile 在后；统一用于 Service / Notify 配置遍历。
+    private var profiles: [BleGattProfile] {
+        [configuration.gattProfile] + configuration.supplementaryGattProfiles
+    }
+
+    /// 主 Profile 与 supplementaryGattProfiles 合并后的 Service UUID 列表（空表示未配置，discover 全部）。
     private var mergedServiceUUIDs: [CBUUID] {
-        var combined: [CBUUID] = []
-        if let primary = configuration.gattProfile.serviceUUIDs, !primary.isEmpty {
-            combined.append(contentsOf: primary)
-        }
-        for profile in configuration.supplementaryGattProfiles {
-            if let uuids = profile.serviceUUIDs, !uuids.isEmpty {
-                combined.append(contentsOf: uuids)
-            }
-        }
-        return combined
+        profiles.flatMap { $0.serviceUUIDs ?? [] }
     }
 
     /// 按 mergedServiceUUIDs 过滤；未配置 UUID 时保留 peripheral 返回的全部 Service。
@@ -151,57 +147,37 @@ final class BleGattSetup {
         }
     }
 
-    /// 按 Service UUID 匹配 supplementary，否则回落主 gattProfile（决定 read/notify/write 目标）。
-    private func profile(for service: CBService) -> BleGattProfile {
-        for supplementary in configuration.supplementaryGattProfiles {
-            guard let serviceUUIDs = supplementary.serviceUUIDs, !serviceUUIDs.isEmpty else { continue }
-            if serviceUUIDs.contains(where: { BleUUID.matches(service.uuid, $0) }) {
-                return supplementary
-            }
+    /// supplementary 按 Service UUID 优先匹配，否则回落主 Profile；同时标记能否绑定主 write。
+    private func profile(for service: CBService) -> (profile: BleGattProfile, isPrimary: Bool) {
+        if let supplementary = configuration.supplementaryGattProfiles.first(where: { profile in
+            profile.serviceUUIDs?.contains { BleUUID.matches(service.uuid, $0) } == true
+        }) {
+            return (supplementary, false)
         }
-        return configuration.gattProfile
-    }
 
-    /// 主 Service 才绑定 ready 的 `writeChar`。未配主 serviceUUIDs 时：非附加 Service 都算主，避免「有 supplementary 则谁都不是 primary」。
-    private func isPrimaryService(_ service: CBService) -> Bool {
-        for supplementary in configuration.supplementaryGattProfiles {
-            guard let uuids = supplementary.serviceUUIDs, !uuids.isEmpty else { continue }
-            if uuids.contains(where: { BleUUID.matches(service.uuid, $0) }) {
-                return false
-            }
+        let primary = configuration.gattProfile
+        guard let serviceUUIDs = primary.serviceUUIDs, !serviceUUIDs.isEmpty else {
+            return (primary, true)
         }
-        guard let serviceUUIDs = configuration.gattProfile.serviceUUIDs, !serviceUUIDs.isEmpty else {
-            return true
-        }
-        return serviceUUIDs.contains { BleUUID.matches(service.uuid, $0) }
+        return (primary, serviceUUIDs.contains { BleUUID.matches(service.uuid, $0) })
     }
 
     /// 该 Service 对应 profile 下需发现的特征 UUID；nil 表示 discoverCharacteristics(nil) 发现全部。
     private func characteristicsToDiscover(for service: CBService) -> [CBUUID]? {
-        let profile = profile(for: service)
+        let (profile, _) = profile(for: service)
         let charUUIDs = [profile.readCharUUID, profile.writeCharUUID, profile.notifyCharUUID].compactMap { $0 }
         return charUUIDs.isEmpty ? nil : charUUIDs
     }
 
     private var requiredNotifyUUIDs: [CBUUID] {
-        var uuids: [CBUUID] = []
-        if let primary = configuration.gattProfile.notifyCharUUID {
-            uuids.append(primary)
-        }
-        for profile in configuration.supplementaryGattProfiles {
-            if let notify = profile.notifyCharUUID {
-                uuids.append(notify)
-            }
-        }
-        return uuids
+        profiles.compactMap(\.notifyCharUUID)
     }
 
     // MARK: - Process
 
     /// 遍历特征：read → setNotify → 记录 writeChar（write 仅主 Profile）
     private func process(characteristics: [CBCharacteristic], peripheral: CBPeripheral, service: CBService) {
-        let profile = profile(for: service)
-        let isPrimary = isPrimaryService(service)
+        let (profile, isPrimary) = profile(for: service)
         for characteristic in characteristics {
             if characteristic.properties.contains(.read),
                BleUUID.matches(characteristic.uuid, configured: profile.readCharUUID) {
