@@ -449,7 +449,10 @@ public final class BleCentral: NSObject {
         }
 
         if isNewDevice, let detail = parsedDataLogDescription(parsedData) {
-            logger.log("发现外设: \(detail)")
+            let discoveryLogger = resolvedConfiguration.map {
+                BleLogger(isEnabled: $0.debugLog, tag: $0.logTag)
+            } ?? logger
+            discoveryLogger.log("发现外设: \(detail)")
         }
         session.continuation.yield(discovery)
     }
