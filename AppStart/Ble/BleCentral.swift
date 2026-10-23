@@ -63,6 +63,7 @@ public final class BleCentral: NSObject {
         let id: UUID
         /// 本次 scan 返回的 AsyncStream 消费方
         let continuation: AsyncStream<BleDiscovery>.Continuation
+        /// 本次扫描的解析模式：指定单配置，或按顺序匹配多个产品配置
         let mode: ScanMode
         /// 仅用于 CoreBluetooth 广播层过滤；产品混扫固定为 nil
         let serviceUUIDs: [CBUUID]?
@@ -275,7 +276,7 @@ public final class BleCentral: NSObject {
 
     /// 由 BlePeripheralConnection / BleReconnectHandler 调用，发起底层 connect。
     func performConnect(_ peripheral: CBPeripheral) {
-        logger.log("开始连接: \(peripheral.name ?? "未知")")
+        log("开始连接: \(peripheral.name ?? "未知")", for: peripheral)
         centralManager.connect(peripheral, options: nil)
     }
 
@@ -297,6 +298,15 @@ public final class BleCentral: NSObject {
             logger: BleLogger(isEnabled: configuration.debugLog, tag: configuration.logTag),
             central: self
         )
+    }
+
+    /// 已注册连接使用自身产品 Logger；没有连接上下文时回退 Central Logger。
+    private func log(_ message: String, for peripheral: CBPeripheral) {
+        if let connection = connectionRegistry[peripheral.identifier] {
+            connection.log(message)
+        } else {
+            logger.log(message)
+        }
     }
 
     /// 替换当前扫描会话：finish 旧 stream，启动新 CBCentralManager 扫描。
@@ -512,7 +522,7 @@ extension BleCentral: CBCentralManagerDelegate {
 
     public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         Task { @MainActor in
-            self.logger.log("已连接: \(peripheral.name ?? "未知")")
+            self.log("已连接: \(peripheral.name ?? "未知")", for: peripheral)
             self.connectionRegistry[peripheral.identifier]?.handleConnected()
         }
     }
@@ -525,9 +535,9 @@ extension BleCentral: CBCentralManagerDelegate {
         Task { @MainActor in
             let name = peripheral.name ?? "未知"
             if let error {
-                self.logger.log("意外断开: \(name), \(error.localizedDescription)")
+                self.log("意外断开: \(name), \(error.localizedDescription)", for: peripheral)
             } else {
-                self.logger.log("连接已断开（系统未提供错误）: \(name)")
+                self.log("连接已断开（系统未提供错误）: \(name)", for: peripheral)
             }
             self.connectionRegistry[peripheral.identifier]?.handleDisconnected(error: error)
         }
@@ -539,7 +549,7 @@ extension BleCentral: CBCentralManagerDelegate {
         error: Error?
     ) {
         Task { @MainActor in
-            self.logger.log("连接失败: \(peripheral.name ?? "未知")")
+            self.log("连接失败: \(peripheral.name ?? "未知")", for: peripheral)
             self.connectionRegistry[peripheral.identifier]?.handleConnectFailed(error)
         }
     }

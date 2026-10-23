@@ -307,6 +307,11 @@ public final class BlePeripheralConnection: NSObject {
         }
     }
 
+    /// Central 的连接生命周期日志复用当前连接的产品 Logger，避免多产品并发时标签串线。
+    func log(_ message: String) {
+        logger.log(message)
+    }
+
     private func updateState(_ state: BlePeripheralState) {
         currentState = state
     }
