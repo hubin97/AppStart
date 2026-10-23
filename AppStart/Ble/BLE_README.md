@@ -184,7 +184,7 @@ BleSession.connect(discovery:)  // App 推荐入口
 | 协议模型 | `BleConfiguration.swift` | 单产品完整配置快照 |
 | 扫描过滤 | `BlePeripheralMatching.swift` | 第一道过滤：要不要这条广播 |
 | 广播解析 | `BleAdvDataParser.swift` | 第二道：解析 MAC 等业务字段 |
-| 多产品 | `BleProductRegistry.swift` | OR 匹配 + resolve 顺序 |
+| 多产品 | `BleProductRegistry.swift` | 按配置顺序 resolve |
 | App 入口 | `BleSession.swift` | configure / scan / connect |
 | Central | `BleCentral.swift` | CBCentralManager + 扫描会话 |
 | 广播流 | `BleAsyncBroadcastStream.swift` | 多页面订阅同一事件源 |
@@ -382,17 +382,13 @@ App 层应实现产品专属 parser（如吸奶器 MAC 格式），放在业务�
 ### 5. `BleProductRegistry.swift` — 多产品混扫
 
 ```swift
-// 混扫 matching = 所有产品 OR（第一道：可能是自家设备）
-products.compositeMatching
-
-// resolve = 按 configurations 顺序取第一个命中的 configuration（定案：用哪款 advParser / GATT）
+// 按 configurations 顺序取第一个命中的 configuration（决定 advParser / GATT）
 products.resolve(peripheral:advertisementData:)
 ```
 
 | 机制 | 时机 | 规则 | 用途 |
 |------|------|------|------|
-| `compositeMatching` | 混扫 `scan(products:)` 合并 matching | 任一产品 matching 命中 | 软件层 OR 过滤（系统 scan 仍全量） |
-| `resolve` | `handleDiscovery` 每条广播 | **configurations 中位置靠前者优先** | 写入 `BleDiscovery.configuration`，决定 parser 与连接协议 |
+| `resolve` | `handleDiscovery` 每条广播 | **configurations 中位置靠前者优先** | 同时完成软件层过滤与产品定案，写入 `BleDiscovery.configuration` |
 
 **关键规则：**
 
@@ -771,7 +767,6 @@ App: try await connection.write(c0Data)
 | `BleUUID` | CBUUID 等价比较 |
 | `BlePrefixMatchingStrategy` | 名称前缀 / 厂商数据前缀匹配 |
 | `AnyBleAdvDataParser` | 解析器类型擦除 |
-| `BleCompositeMatchingStrategy` | 多产品 OR 匹配 |
 | `BleCharacteristicUpdate` | Notify 特征值变更 |
 | `BleWriteAck` | 串行写 ACK 结果（request + response） |
 | `BleDiscovery` | 扫描结果（含 `effectiveConfiguration`、typed parsedData、displayName） |

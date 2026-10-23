@@ -141,12 +141,9 @@ public final class BleCentral: NSObject {
         guard !products.isEmpty else {
             return scan(configuration: nil, timeout: timeout)
         }
-        let single = products.count == 1 ? products[0] : nil
-        var merged = BleConfiguration()
-        merged.matching = products.compositeMatching
         return scan(
             products: products,
-            configuration: single ?? merged,
+            configuration: nil,
             serviceUUIDs: nil,
             timeout: timeout
         )
