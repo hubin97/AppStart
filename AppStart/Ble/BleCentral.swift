@@ -50,16 +50,20 @@ public final class BleCentral: NSObject {
     //   - startScanning(sessionID:)：启动前校验 sessionID，防止已被替换的 session 异步路径误改状态；
     //   - handleDiscovery：只向 activeScanSession.continuation yield。
     //
+    private enum ScanMode {
+        /// 直接使用指定配置过滤；nil 时回退到 Central 默认配置。
+        case configuration(BleConfiguration?)
+        /// 按数组顺序匹配产品，首个命中的配置用于解析广播和后续连接。
+        case products([BleConfiguration])
+    }
+
     // ScanSession 暂作 BleCentral 私有 nested struct，不单独抽文件（与 Central 扫描生命周期强耦合，无第二处复用）。
     private struct ScanSession {
         /// 会话 token；onTermination / 超时回调携带此 id，用于与 activeScanSession 比对
         let id: UUID
         /// 本次 scan 返回的 AsyncStream 消费方
         let continuation: AsyncStream<BleDiscovery>.Continuation
-        /// 单配置/临时扫描用的 matching 配置
-        var configuration: BleConfiguration?
-        /// 混扫产品列表；handleDiscovery 中 resolve 定案与 advParser 解析
-        var products: [BleConfiguration]
+        let mode: ScanMode
         /// 仅用于 CoreBluetooth 广播层过滤；产品混扫固定为 nil
         let serviceUUIDs: [CBUUID]?
         /// 从底层真正开始扫描时计时；Central 状态 unknown/resetting 期间不消耗扫描窗口
@@ -125,8 +129,7 @@ public final class BleCentral: NSObject {
         timeout: TimeInterval? = nil
     ) -> AsyncStream<BleDiscovery> {
         scan(
-            products: [],
-            configuration: configuration,
+            mode: .configuration(configuration),
             serviceUUIDs: serviceUUIDs,
             timeout: timeout
         )
@@ -142,8 +145,7 @@ public final class BleCentral: NSObject {
             return scan(configuration: nil, timeout: timeout)
         }
         return scan(
-            products: products,
-            configuration: nil,
+            mode: .products(products),
             serviceUUIDs: nil,
             timeout: timeout
         )
@@ -152,8 +154,7 @@ public final class BleCentral: NSObject {
     /// 内部统一扫描入口：创建 AsyncStream，在 MainActor 上启动 CBCentralManager 扫描。
     /// 新 scan 会 finish 旧 stream 并替换会话；旧 stream 的 onTermination 仅停止对应 token 的会话。
     private func scan(
-        products: [BleConfiguration],
-        configuration: BleConfiguration?,
+        mode: ScanMode,
         serviceUUIDs: [CBUUID]?,
         timeout: TimeInterval?
     ) -> AsyncStream<BleDiscovery> {
@@ -163,8 +164,7 @@ public final class BleCentral: NSObject {
                 self.replaceScanSession(
                     id: sessionID,
                     continuation: continuation,
-                    products: products,
-                    configuration: configuration,
+                    mode: mode,
                     serviceUUIDs: serviceUUIDs,
                     timeout: timeout
                 )
@@ -303,8 +303,7 @@ public final class BleCentral: NSObject {
     private func replaceScanSession(
         id: UUID,
         continuation: AsyncStream<BleDiscovery>.Continuation,
-        products: [BleConfiguration],
-        configuration: BleConfiguration?,
+        mode: ScanMode,
         serviceUUIDs: [CBUUID]?,
         timeout: TimeInterval?
     ) {
@@ -312,7 +311,13 @@ public final class BleCentral: NSObject {
             finishScanSession(current, emitStopped: true)
         }
 
-        let logSources = !products.isEmpty ? products : [configuration].compactMap { $0 }
+        let logSources: [BleConfiguration]
+        switch mode {
+        case .configuration(let configuration):
+            logSources = [configuration].compactMap { $0 }
+        case .products(let products):
+            logSources = products
+        }
         if !logSources.isEmpty {
             syncLogger(from: logSources)
         }
@@ -320,8 +325,7 @@ public final class BleCentral: NSObject {
         activeScanSession = ScanSession(
             id: id,
             continuation: continuation,
-            configuration: configuration,
-            products: products,
+            mode: mode,
             serviceUUIDs: serviceUUIDs,
             timeout: timeout,
             timeoutTask: nil
@@ -403,18 +407,19 @@ public final class BleCentral: NSObject {
     ) {
         guard let session = activeScanSession else { return }
 
-        // 1. 定案：混扫时按 configurations 顺序 resolve 具体配置；临时扫描走 matching
+        // 1. 产品扫描按配置顺序定案；直接扫描只执行 matching，不绑定产品配置。
         let resolvedConfiguration: BleConfiguration?
-        if !session.products.isEmpty {
-            guard let resolved = session.products.resolve(
+        switch session.mode {
+        case .products(let products):
+            guard let matched = products.resolve(
                 peripheral: peripheral,
                 advertisementData: advertisementData
             ) else { return }
-            resolvedConfiguration = resolved
-        } else {
-            let filterConfiguration = session.configuration ?? configuration
-            guard filterConfiguration.matching.shouldConnect(
-                to: peripheral,
+            resolvedConfiguration = matched
+        case .configuration(let scanConfiguration):
+            let filterConfiguration = scanConfiguration ?? configuration
+            guard filterConfiguration.matches(
+                peripheral: peripheral,
                 advertisementData: advertisementData
             ) else { return }
             resolvedConfiguration = nil

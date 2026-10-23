@@ -437,8 +437,7 @@ products.resolve(peripheral:advertisementData:)
 |------|------|
 | `ScanSession.id` | 会话 token；`onTermination` / 超时仅停止匹配 token 的会话 |
 | `ScanSession.continuation` | 向 AsyncStream 消费方 yield |
-| `ScanSession.products` | 多产品列表，供 resolve |
-| `ScanSession.configuration` | 本轮 matching 用的配置（单产品或 composite） |
+| `ScanSession.mode` | `.configuration` 表示直接扫描，`.products` 表示按配置顺序 resolve 产品 |
 | `isScanning` | 是否正在 CBCentralManager 扫描 |
 | `discoveredDevices` | 本轮缓存；同 identifier 原地更新，并多次 yield 以刷新 RSSI |
 
@@ -448,7 +447,7 @@ products.resolve(peripheral:advertisementData:)
 
 ```
 didDiscover
-  → 产品扫描：activeScanSession.products.resolve()，失败则丢弃
+  → 产品扫描：ScanMode.products 中的配置按顺序 resolve，失败则丢弃
   → 临时扫描：matching.shouldConnect()，失败则丢弃
   → resolvedConfiguration.advParser 解析广播（失败 parsedData = nil）
   → 构造 BleDiscovery → 更新 discoveredDevices → yield
